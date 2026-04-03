@@ -1,18 +1,17 @@
-package auth_test
+package auth
 
 import (
 	"context"
 	"strings"
 	"testing"
 
-	auth "go-check-ssl/apps/api/internal/auth"
 	"go-check-ssl/apps/api/internal/testutil"
 )
 
 func TestRegisterVerifyAndLogin(t *testing.T) {
 	runtime := testutil.NewRuntime(t)
 
-	user, err := runtime.Auth.Register(context.Background(), auth.RegisterInput{
+	user, err := runtime.Auth.Register(context.Background(), RegisterInput{
 		Email:      "owner@example.com",
 		Password:   "Password123!",
 		TenantName: "Owner workspace",
@@ -36,7 +35,7 @@ func TestRegisterVerifyAndLogin(t *testing.T) {
 		t.Fatalf("verify email: %v", err)
 	}
 
-	loggedIn, tokens, err := runtime.Auth.Login(context.Background(), auth.LoginInput{
+	loggedIn, tokens, err := runtime.Auth.Login(context.Background(), LoginInput{
 		Email:    "owner@example.com",
 		Password: "Password123!",
 	})
