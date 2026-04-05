@@ -2,6 +2,7 @@ package sslcheck
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +21,9 @@ func TestCheckTLSCertificate(t *testing.T) {
 	}
 
 	checker := New(3 * time.Second)
+	checker.TLSConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
 	result := checker.Check(context.Background(), parts[0], mustParsePort(t, parts[1]))
 
 	if result.Status != "healthy" {

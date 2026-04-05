@@ -14,3 +14,4 @@ apps/api/coverage.out
 apps/web/coverage/
 apps/web/dist/
 apps/web/node_modules/
+*.tsbuildinfo

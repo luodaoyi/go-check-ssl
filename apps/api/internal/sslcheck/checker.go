@@ -21,8 +21,9 @@ type Result struct {
 }
 
 type Checker struct {
-	Timeout time.Duration
-	Now     func() time.Time
+	Timeout   time.Duration
+	TLSConfig *tls.Config
+	Now       func() time.Time
 }
 
 func New(timeout time.Duration) *Checker {
@@ -39,10 +40,21 @@ func (c *Checker) Check(ctx context.Context, hostname string, port int) Result {
 	addr := net.JoinHostPort(hostname, strconv.Itoa(port))
 
 	dialer := &net.Dialer{Timeout: c.Timeout}
-	conn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
+	tlsConfig := &tls.Config{
 		ServerName: hostname,
 		MinVersion: tls.VersionTLS12,
-	})
+	}
+	if c.TLSConfig != nil {
+		tlsConfig = c.TLSConfig.Clone()
+		if tlsConfig.ServerName == "" {
+			tlsConfig.ServerName = hostname
+		}
+		if tlsConfig.MinVersion == 0 {
+			tlsConfig.MinVersion = tls.VersionTLS12
+		}
+	}
+
+	conn, err := tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
 	if err != nil {
 		return Result{
 			Status:    models.DomainStatusError,
