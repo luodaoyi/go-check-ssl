@@ -40,9 +40,6 @@ function ProtectedShell({ mode }: { mode: "workspace" | "admin" }) {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  if (mode === "workspace" && user.role === "super_admin") {
-    return <Navigate to="/admin" replace />;
-  }
   if (mode === "admin" && user.role !== "super_admin") {
     return <Navigate to="/app" replace />;
   }
