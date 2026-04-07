@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useI18n } from "@/lib/i18n";
 import type { ApiEndpoint, PolicyView } from "@/lib/types";
 
 interface PolicyFormValues {
@@ -25,12 +27,20 @@ export function PolicyForm({
   submitLabel: string;
   onSubmit: (payload: PolicyPayload) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const form = useForm<PolicyFormValues>({
     defaultValues: {
       thresholds: policy?.threshold_days.join(", ") ?? "30, 7, 1",
       endpoint_ids: policy?.endpoint_ids ?? [],
     },
   });
+
+  useEffect(() => {
+    form.reset({
+      thresholds: policy?.threshold_days.join(", ") ?? "30, 7, 1",
+      endpoint_ids: policy?.endpoint_ids ?? [],
+    });
+  }, [form, policy]);
 
   const thresholdPreview = form.watch("thresholds");
 
@@ -51,13 +61,13 @@ export function PolicyForm({
   return (
     <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
       <div className="space-y-2">
-        <label className="text-sm font-medium">Thresholds (days, comma separated)</label>
-        <Input placeholder="30, 7, 1" {...form.register("thresholds")} />
-        <p className="text-xs text-muted-foreground">Current input: {thresholdPreview}</p>
+        <label className="text-sm font-medium">{t("notifications.thresholdsLabel")}</label>
+        <Input placeholder={t("notifications.thresholdsPlaceholder")} {...form.register("thresholds")} />
+        <p className="text-xs text-muted-foreground">{t("notifications.currentThresholdInput", { value: thresholdPreview })}</p>
       </div>
 
       <div className="space-y-2">
-        <p className="text-sm font-medium">Channels</p>
+        <p className="text-sm font-medium">{t("notifications.channels")}</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {endpoints.map((endpoint) => (
             <label key={endpoint.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
@@ -77,7 +87,9 @@ export function PolicyForm({
                 }}
               />
               <span>{endpoint.name}</span>
-              <span className="text-muted-foreground">({endpoint.type})</span>
+              <span className="text-muted-foreground">
+                ({t(endpoint.type === "email" ? "endpointType.email" : endpoint.type === "telegram" ? "endpointType.telegram" : "endpointType.webhook")})
+              </span>
             </label>
           ))}
         </div>

@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 
+import { PublicPageShell } from "@/components/layout/public-page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 
 interface FormValues {
   password: string;
@@ -14,6 +16,7 @@ interface FormValues {
 
 export function ResetPasswordPage() {
   const { resetPassword } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const token = useMemo(() => params.get("token") ?? "", [params]);
@@ -26,32 +29,32 @@ export function ResetPasswordPage() {
       await resetPassword(token, values.password);
       navigate("/login");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to reset password");
+      setError(reason instanceof Error ? reason.message : t("auth.resetPasswordFallbackError"));
     }
   });
 
   return (
-    <div className="page-shell flex min-h-screen items-center justify-center">
+    <PublicPageShell>
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Reset password</CardTitle>
-          <CardDescription>Use the reset token sent to your email.</CardDescription>
+          <CardTitle>{t("auth.resetPasswordTitle")}</CardTitle>
+          <CardDescription>{t("auth.resetPasswordDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={(event) => void handleSubmit(event)}>
             <div className="space-y-2">
-              <Label htmlFor="reset-password">New password</Label>
+              <Label htmlFor="reset-password">{t("common.newPassword")}</Label>
               <Input id="reset-password" type="password" {...form.register("password", { required: true })} />
             </div>
-            {!token ? <p className="text-sm text-destructive">Missing token in URL.</p> : null}
+            {!token ? <p className="text-sm text-destructive">{t("auth.missingResetToken")}</p> : null}
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
-            <Button className="w-full" type="submit" disabled={!token}>Reset password</Button>
+            <Button className="w-full" type="submit" disabled={!token}>{t("auth.resetPasswordButton")}</Button>
           </form>
           <div className="mt-4 text-sm text-muted-foreground">
-            <Link to="/login">Back to login</Link>
+            <Link to="/login">{t("auth.backToLogin")}</Link>
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PublicPageShell>
   );
 }

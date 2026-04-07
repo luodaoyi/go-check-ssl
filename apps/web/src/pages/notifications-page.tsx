@@ -6,9 +6,11 @@ import { PolicyForm, type PolicyPayload } from "@/components/notifications/polic
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiRequest } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import type { ApiDomain, ApiEndpoint, TenantPolicies } from "@/lib/types";
 
 export function NotificationsPage() {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const [editingEndpoint, setEditingEndpoint] = useState<ApiEndpoint | null>(null);
   const [selectedDomainId, setSelectedDomainId] = useState<number | null>(null);
@@ -78,13 +80,13 @@ export function NotificationsPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>{editingEndpoint ? "Edit notification endpoint" : "Add notification endpoint"}</CardTitle>
-          <CardDescription>Manage email recipients, Telegram chat IDs, and generic webhooks.</CardDescription>
+          <CardTitle>{editingEndpoint ? t("notifications.editEndpointTitle") : t("notifications.addEndpointTitle")}</CardTitle>
+          <CardDescription>{t("notifications.endpointDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <EndpointForm
             endpoint={editingEndpoint ?? undefined}
-            submitLabel={editingEndpoint ? "Save endpoint" : "Add endpoint"}
+            submitLabel={editingEndpoint ? t("notifications.saveEndpoint") : t("notifications.addEndpoint")}
             onSubmit={async (values) => {
               await saveEndpointMutation.mutateAsync({ id: editingEndpoint?.id, values });
             }}
@@ -95,20 +97,22 @@ export function NotificationsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Notification endpoints</CardTitle>
-          <CardDescription>Bind these endpoints to default or per-domain threshold policies.</CardDescription>
+          <CardTitle>{t("notifications.endpointListTitle")}</CardTitle>
+          <CardDescription>{t("notifications.endpointListDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {endpoints.length === 0 ? <p className="text-sm text-muted-foreground">No endpoints configured yet.</p> : null}
+          {endpoints.length === 0 ? <p className="text-sm text-muted-foreground">{t("notifications.noEndpoints")}</p> : null}
           {endpoints.map((endpoint) => (
             <div key={endpoint.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
               <div>
                 <p className="font-medium">{endpoint.name}</p>
-                <p className="text-sm text-muted-foreground">{endpoint.type}</p>
+                <p className="text-sm text-muted-foreground">
+                  {t(endpoint.type === "email" ? "endpointType.email" : endpoint.type === "telegram" ? "endpointType.telegram" : "endpointType.webhook")}
+                </p>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setEditingEndpoint(endpoint)}>Edit</Button>
-                <Button variant="destructive" size="sm" onClick={() => void deleteEndpointMutation.mutateAsync(endpoint.id)}>Delete</Button>
+                <Button variant="outline" size="sm" onClick={() => setEditingEndpoint(endpoint)}>{t("common.edit")}</Button>
+                <Button variant="destructive" size="sm" onClick={() => void deleteEndpointMutation.mutateAsync(endpoint.id)}>{t("common.delete")}</Button>
               </div>
             </div>
           ))}
@@ -117,14 +121,14 @@ export function NotificationsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Default tenant policy</CardTitle>
-          <CardDescription>Applied to all domains unless a domain override exists.</CardDescription>
+          <CardTitle>{t("notifications.defaultPolicyTitle")}</CardTitle>
+          <CardDescription>{t("notifications.defaultPolicyDescription")}</CardDescription>
         </CardHeader>
         <CardContent>
           <PolicyForm
             endpoints={endpoints}
             policy={policies?.default}
-            submitLabel="Save default policy"
+            submitLabel={t("notifications.saveDefaultPolicy")}
             onSubmit={async (values) => {
               await policyMutation.mutateAsync({ values });
             }}
@@ -134,8 +138,8 @@ export function NotificationsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Domain override policy</CardTitle>
-          <CardDescription>Override thresholds and endpoint bindings for a single domain.</CardDescription>
+          <CardTitle>{t("notifications.overridePolicyTitle")}</CardTitle>
+          <CardDescription>{t("notifications.overridePolicyDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <select
@@ -143,7 +147,7 @@ export function NotificationsPage() {
             value={selectedDomainId ?? ""}
             onChange={(event) => setSelectedDomainId(event.target.value ? Number(event.target.value) : null)}
           >
-            <option value="">Select a domain</option>
+            <option value="">{t("notifications.selectDomain")}</option>
             {domains.map((domain) => (
               <option key={domain.id} value={domain.id}>{domain.hostname}:{domain.port}</option>
             ))}
@@ -153,13 +157,13 @@ export function NotificationsPage() {
             <PolicyForm
               endpoints={endpoints}
               policy={overridePolicy}
-              submitLabel="Save domain policy"
+              submitLabel={t("notifications.saveDomainPolicy")}
               onSubmit={async (values) => {
                 await policyMutation.mutateAsync({ domainId: selectedDomain.id, values });
               }}
             />
           ) : (
-            <p className="text-sm text-muted-foreground">Choose a domain to edit its override policy.</p>
+            <p className="text-sm text-muted-foreground">{t("notifications.chooseDomainToEdit")}</p>
           )}
         </CardContent>
       </Card>

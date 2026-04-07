@@ -1,0 +1,26 @@
+import { Languages } from "lucide-react";
+
+import { localeOptions, useI18n } from "@/lib/i18n";
+
+export function LanguageSwitcher() {
+  const { locale, setLocale, t } = useI18n();
+
+  return (
+    <label className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm">
+      <Languages className="h-4 w-4" />
+      <span className="sr-only">{t("common.language")}</span>
+      <select
+        aria-label={t("common.language")}
+        className="bg-transparent text-foreground outline-none"
+        value={locale}
+        onChange={(event) => setLocale(event.target.value as (typeof localeOptions)[number]["value"])}
+      >
+        {localeOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}

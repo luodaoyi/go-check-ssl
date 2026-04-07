@@ -42,6 +42,7 @@ func NewRuntime(t *testing.T) *TestRuntime {
 		DBDriver:               "sqlite",
 		DatabaseURL:            filepath.Join(t.TempDir(), "test.db"),
 		AllowRegistration:      true,
+		BootstrapAdminUsername: "admin",
 		BootstrapAdminEmail:    "admin@example.com",
 		BootstrapAdminPassword: "ChangeMe123!",
 		JWTSecret:              "unit-test-secret",

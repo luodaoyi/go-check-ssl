@@ -11,7 +11,7 @@ import (
 type UserRole string
 
 const (
-	RoleSuperAdmin UserRole = "super_admin"
+	RoleSuperAdmin  UserRole = "super_admin"
 	RoleTenantOwner UserRole = "tenant_owner"
 )
 
@@ -39,52 +39,56 @@ const (
 )
 
 type Tenant struct {
-	ID        uint      `gorm:"primaryKey"`
-	Name      string    `gorm:"size:120;not null"`
-	Slug      string    `gorm:"size:160;not null;uniqueIndex"`
+	ID        uint   `gorm:"primaryKey"`
+	Name      string `gorm:"size:120;not null"`
+	Slug      string `gorm:"size:160;not null;uniqueIndex"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
 type User struct {
-	ID              uint      `gorm:"primaryKey"`
-	TenantID        uint      `gorm:"not null;index"`
-	Email           string    `gorm:"size:255;not null;uniqueIndex"`
-	PasswordHash    string    `gorm:"size:255;not null"`
-	Role            UserRole  `gorm:"size:32;not null;index"`
-	EmailVerifiedAt *time.Time
-	LastLoginAt     *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                     uint     `gorm:"primaryKey"`
+	TenantID               uint     `gorm:"not null;index"`
+	Username               string   `gorm:"size:64;index"`
+	UsernameNormalized     string   `gorm:"size:64;index"`
+	Email                  string   `gorm:"size:255;not null;uniqueIndex"`
+	ContactEmail           *string  `gorm:"size:255"`
+	ContactEmailNormalized *string  `gorm:"size:255;index"`
+	PasswordHash           string   `gorm:"size:255;not null"`
+	Role                   UserRole `gorm:"size:32;not null;index"`
+	EmailVerifiedAt        *time.Time
+	LastLoginAt            *time.Time
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 type AuthSession struct {
-	ID        uint       `gorm:"primaryKey"`
-	UserID    uint       `gorm:"not null;index"`
-	TenantID  uint       `gorm:"not null;index"`
-	TokenHash string     `gorm:"size:128;not null;uniqueIndex"`
-	UserAgent string     `gorm:"size:255"`
-	IPAddress string     `gorm:"size:64"`
-	ExpiresAt time.Time  `gorm:"not null;index"`
+	ID        uint      `gorm:"primaryKey"`
+	UserID    uint      `gorm:"not null;index"`
+	TenantID  uint      `gorm:"not null;index"`
+	TokenHash string    `gorm:"size:128;not null;uniqueIndex"`
+	UserAgent string    `gorm:"size:255"`
+	IPAddress string    `gorm:"size:64"`
+	ExpiresAt time.Time `gorm:"not null;index"`
 	RevokedAt *time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
 type EmailVerificationToken struct {
-	ID         uint       `gorm:"primaryKey"`
-	UserID     uint       `gorm:"not null;index"`
-	TokenHash  string     `gorm:"size:128;not null;uniqueIndex"`
-	ExpiresAt  time.Time  `gorm:"not null;index"`
+	ID         uint      `gorm:"primaryKey"`
+	UserID     uint      `gorm:"not null;index"`
+	TokenHash  string    `gorm:"size:128;not null;uniqueIndex"`
+	ExpiresAt  time.Time `gorm:"not null;index"`
 	ConsumedAt *time.Time
 	CreatedAt  time.Time
 }
 
 type PasswordResetToken struct {
-	ID         uint       `gorm:"primaryKey"`
-	UserID     uint       `gorm:"not null;index"`
-	TokenHash  string     `gorm:"size:128;not null;uniqueIndex"`
-	ExpiresAt  time.Time  `gorm:"not null;index"`
+	ID         uint      `gorm:"primaryKey"`
+	UserID     uint      `gorm:"not null;index"`
+	TokenHash  string    `gorm:"size:128;not null;uniqueIndex"`
+	ExpiresAt  time.Time `gorm:"not null;index"`
 	ConsumedAt *time.Time
 	CreatedAt  time.Time
 }
@@ -100,9 +104,9 @@ type Domain struct {
 	LastSuccessfulAt     *time.Time
 	CertExpiresAt        *time.Time
 	DaysRemaining        *int
-	LastError            string       `gorm:"type:text"`
-	NextCheckAt          time.Time    `gorm:"not null;index"`
-	CheckIntervalSeconds int          `gorm:"not null;default:3600"`
+	LastError            string    `gorm:"type:text"`
+	NextCheckAt          time.Time `gorm:"not null;index"`
+	CheckIntervalSeconds int       `gorm:"not null;default:3600"`
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
 }
@@ -131,27 +135,27 @@ type NotificationEndpoint struct {
 }
 
 type NotificationPolicy struct {
-	ID             uint                    `gorm:"primaryKey"`
-	TenantID       uint                    `gorm:"not null;index;uniqueIndex:idx_policy_scope"`
-	ScopeType      NotificationPolicyScope `gorm:"size:32;not null;uniqueIndex:idx_policy_scope"`
-	DomainID       uint                    `gorm:"not null;default:0;uniqueIndex:idx_policy_scope"`
-	ThresholdsJSON string                  `gorm:"type:text;not null"`
-	EndpointIDsJSON string                 `gorm:"type:text;not null"`
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID              uint                    `gorm:"primaryKey"`
+	TenantID        uint                    `gorm:"not null;index;uniqueIndex:idx_policy_scope"`
+	ScopeType       NotificationPolicyScope `gorm:"size:32;not null;uniqueIndex:idx_policy_scope"`
+	DomainID        uint                    `gorm:"not null;default:0;uniqueIndex:idx_policy_scope"`
+	ThresholdsJSON  string                  `gorm:"type:text;not null"`
+	EndpointIDsJSON string                  `gorm:"type:text;not null"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type NotificationDelivery struct {
-	ID            uint       `gorm:"primaryKey"`
-	TenantID      uint       `gorm:"not null;index"`
-	DomainID      uint       `gorm:"not null;index"`
-	EndpointID    uint       `gorm:"not null;index"`
-	EventType     string     `gorm:"size:64;not null;index"`
-	ThresholdDays int        `gorm:"not null;default:0"`
-	DedupKey      string     `gorm:"size:255;not null;uniqueIndex"`
-	Status        string     `gorm:"size:32;not null;index"`
-	ErrorMessage  string     `gorm:"type:text"`
-	Payload       string     `gorm:"type:text"`
+	ID            uint   `gorm:"primaryKey"`
+	TenantID      uint   `gorm:"not null;index"`
+	DomainID      uint   `gorm:"not null;index"`
+	EndpointID    uint   `gorm:"not null;index"`
+	EventType     string `gorm:"size:64;not null;index"`
+	ThresholdDays int    `gorm:"not null;default:0"`
+	DedupKey      string `gorm:"size:255;not null;uniqueIndex"`
+	Status        string `gorm:"size:32;not null;index"`
+	ErrorMessage  string `gorm:"type:text"`
+	Payload       string `gorm:"type:text"`
 	CertExpiresAt *time.Time
 	SentAt        *time.Time
 	CreatedAt     time.Time
@@ -159,8 +163,8 @@ type NotificationDelivery struct {
 }
 
 type SystemSetting struct {
-	Key       string    `gorm:"primaryKey;size:100"`
-	Value     string    `gorm:"type:text;not null"`
+	Key       string `gorm:"primaryKey;size:100"`
+	Value     string `gorm:"type:text;not null"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

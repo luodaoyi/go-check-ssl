@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
+import { I18nProvider } from "@/lib/i18n";
 import { LoginPage } from "@/pages/login-page";
 
 const loginMock = vi.fn().mockResolvedValue(undefined);
@@ -17,15 +18,17 @@ describe("LoginPage", () => {
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter>
-        <LoginPage />
-      </MemoryRouter>
+      <I18nProvider>
+        <MemoryRouter>
+          <LoginPage />
+        </MemoryRouter>
+      </I18nProvider>
     );
 
-    await user.type(screen.getByLabelText(/email/i), "owner@example.com");
+    await user.type(screen.getByLabelText(/username/i), "owner");
     await user.type(screen.getByLabelText(/password/i), "Password123");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
-    expect(loginMock).toHaveBeenCalledWith("owner@example.com", "Password123");
+    expect(loginMock).toHaveBeenCalledWith("owner", "Password123");
   });
 });

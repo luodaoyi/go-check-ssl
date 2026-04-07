@@ -1,20 +1,24 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { ShieldAlert, Bell, Users, LogOut } from "lucide-react";
+import { ShieldAlert, Bell, Users, LogOut, Settings } from "lucide-react";
 
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-
-const baseNav = [
-  { label: "Domains", to: "/app", icon: ShieldAlert },
-  { label: "Notifications", to: "/app/notifications", icon: Bell },
-];
 
 export function AppShell() {
   const { user, logout } = useAuth();
+  const { t } = useI18n();
+
+  const baseNav = [
+    { label: t("nav.domains"), to: "/app", icon: ShieldAlert },
+    { label: t("nav.notifications"), to: "/app/notifications", icon: Bell },
+    { label: t("nav.settings"), to: "/app/settings", icon: Settings },
+  ];
 
   const navItems = user?.role === "super_admin"
-    ? [...baseNav, { label: "Admin", to: "/app/admin", icon: Users }]
+    ? [...baseNav, { label: t("nav.admin"), to: "/app/admin", icon: Users }]
     : baseNav;
 
   return (
@@ -23,16 +27,20 @@ export function AppShell() {
         <div className="page-shell flex items-center justify-between py-4">
           <div>
             <p className="text-sm text-muted-foreground">go-check-ssl</p>
-            <h1 className="text-xl font-semibold">SSL certificate monitoring</h1>
+            <h1 className="text-xl font-semibold">{t("shell.title")}</h1>
           </div>
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             <div className="text-right text-sm">
-              <p className="font-medium">{user?.email}</p>
-              <p className="text-muted-foreground">{user?.role}</p>
+              <p className="font-medium">{user?.username}</p>
+              <p className="text-muted-foreground">{user?.email || t("settings.noEmailBound")}</p>
+              <p className="text-muted-foreground">
+                {user?.role ? t(user.role === "super_admin" ? "role.super_admin" : "role.tenant_owner") : null}
+              </p>
             </div>
             <Button variant="outline" onClick={() => void logout()}>
               <LogOut className="mr-2 h-4 w-4" />
-              Logout
+              {t("common.logout")}
             </Button>
           </div>
         </div>

@@ -24,6 +24,7 @@ func newTestService(t *testing.T) (*Service, *mailer.MemorySender) {
 		DBDriver:               "sqlite",
 		DatabaseURL:            filepath.Join(t.TempDir(), "test.db"),
 		AllowRegistration:      true,
+		BootstrapAdminUsername: "admin",
 		BootstrapAdminEmail:    "admin@example.com",
 		BootstrapAdminPassword: "ChangeMe123!",
 		JWTSecret:              "unit-test-secret",
@@ -51,11 +52,11 @@ func newTestService(t *testing.T) (*Service, *mailer.MemorySender) {
 	return NewService(db, cfg, sender, logger), sender
 }
 
-func TestRegisterVerifyAndLogin(t *testing.T) {
+func TestRegisterUpdateProfileAndLogin(t *testing.T) {
 	service, sender := newTestService(t)
 
 	user, err := service.Register(context.Background(), RegisterInput{
-		Email:      "owner@example.com",
+		Username:   "owner",
 		Password:   "Password123!",
 		TenantName: "Owner workspace",
 	})
@@ -63,23 +64,23 @@ func TestRegisterVerifyAndLogin(t *testing.T) {
 		t.Fatalf("register user: %v", err)
 	}
 
-	if len(sender.Messages) != 1 {
-		t.Fatalf("expected one verification email, got %d", len(sender.Messages))
+	if len(sender.Messages) != 0 {
+		t.Fatalf("expected no registration email, got %d", len(sender.Messages))
 	}
 
-	message := sender.Messages[0].Body
-	pieces := strings.Split(message, "token=")
-	if len(pieces) != 2 {
-		t.Fatalf("expected token in email body, got %q", message)
+	updated, err := service.UpdateProfile(context.Background(), user.ID, UpdateProfileInput{
+		Username: "owner",
+		Email:    "owner@example.com",
+	})
+	if err != nil {
+		t.Fatalf("update profile: %v", err)
 	}
-	token := strings.TrimSpace(pieces[1])
-
-	if err := service.VerifyEmail(context.Background(), token); err != nil {
-		t.Fatalf("verify email: %v", err)
+	if updated.ContactEmail == nil || *updated.ContactEmail != "owner@example.com" {
+		t.Fatalf("expected contact email to be saved, got %+v", updated.ContactEmail)
 	}
 
 	loggedIn, tokens, err := service.Login(context.Background(), LoginInput{
-		Email:    "owner@example.com",
+		Username: "owner",
 		Password: "Password123!",
 	})
 	if err != nil {
@@ -91,5 +92,15 @@ func TestRegisterVerifyAndLogin(t *testing.T) {
 	}
 	if tokens.AccessToken == "" || tokens.RefreshToken == "" {
 		t.Fatalf("expected tokens to be issued")
+	}
+
+	if err := service.ForgotPassword(context.Background(), "owner"); err != nil {
+		t.Fatalf("forgot password: %v", err)
+	}
+	if len(sender.Messages) != 1 {
+		t.Fatalf("expected one reset email, got %d", len(sender.Messages))
+	}
+	if !strings.Contains(sender.Messages[0].Body, "reset-password?token=") {
+		t.Fatalf("expected reset token in email body, got %q", sender.Messages[0].Body)
 	}
 }

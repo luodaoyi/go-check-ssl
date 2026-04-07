@@ -5,38 +5,26 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"go-check-ssl/apps/api/internal/testutil"
 )
 
-func TestRegisterVerifyLoginAndAdminList(t *testing.T) {
+func TestRegisterLoginAndAdminList(t *testing.T) {
 	runtime := testutil.NewRuntime(t)
 	router := runtime.HTTPServer.Router()
 
 	registerBody := map[string]any{
-		"email": "owner@example.com",
+		"username": "owner",
 		"password": "Password123!",
-		"tenant_name": "Owner workspace",
 	}
 	registerResp := performJSONRequest(t, router, http.MethodPost, "/api/auth/register", registerBody, "")
 	if registerResp.Code != http.StatusCreated {
 		t.Fatalf("expected 201, got %d (%s)", registerResp.Code, registerResp.Body.String())
 	}
 
-	if len(runtime.Mailer.Messages) == 0 {
-		t.Fatalf("expected verification email to be sent")
-	}
-	token := strings.TrimSpace(strings.Split(runtime.Mailer.Messages[0].Body, "token=")[1])
-
-	verifyResp := performJSONRequest(t, router, http.MethodPost, "/api/auth/verify-email", map[string]string{"token": token}, "")
-	if verifyResp.Code != http.StatusOK {
-		t.Fatalf("expected verify 200, got %d (%s)", verifyResp.Code, verifyResp.Body.String())
-	}
-
 	loginResp := performJSONRequest(t, router, http.MethodPost, "/api/auth/login", map[string]string{
-		"email": "owner@example.com",
+		"username": "owner",
 		"password": "Password123!",
 	}, "")
 	if loginResp.Code != http.StatusOK {
@@ -52,10 +40,25 @@ func TestRegisterVerifyLoginAndAdminList(t *testing.T) {
 		t.Fatalf("decode login payload: %v", err)
 	}
 
+	updateMeResp := performJSONRequest(t, router, http.MethodPut, "/api/auth/me", map[string]string{
+		"username": "owner",
+		"email":    "owner@example.com",
+	}, loginPayload.Tokens.AccessToken)
+	if updateMeResp.Code != http.StatusOK {
+		t.Fatalf("expected update me 200, got %d (%s)", updateMeResp.Code, updateMeResp.Body.String())
+	}
+
+	forgotResp := performJSONRequest(t, router, http.MethodPost, "/api/auth/forgot-password", map[string]string{
+		"account": "owner",
+	}, "")
+	if forgotResp.Code != http.StatusOK {
+		t.Fatalf("expected forgot password 200, got %d (%s)", forgotResp.Code, forgotResp.Body.String())
+	}
+
 	createDomainResp := performJSONRequest(t, router, http.MethodPost, "/api/domains", map[string]any{
-		"hostname": "example.com",
-		"port": 443,
-		"enabled": true,
+		"hostname":               "example.com",
+		"port":                   443,
+		"enabled":                true,
 		"check_interval_seconds": 3600,
 	}, loginPayload.Tokens.AccessToken)
 	if createDomainResp.Code != http.StatusCreated {
@@ -63,7 +66,7 @@ func TestRegisterVerifyLoginAndAdminList(t *testing.T) {
 	}
 
 	adminLoginResp := performJSONRequest(t, router, http.MethodPost, "/api/auth/login", map[string]string{
-		"email": runtime.Config.BootstrapAdminEmail,
+		"username": runtime.Config.BootstrapAdminUsername,
 		"password": runtime.Config.BootstrapAdminPassword,
 	}, "")
 	if adminLoginResp.Code != http.StatusOK {

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { apiRequest, setAccessToken, setRefreshHandler } from "@/lib/api";
@@ -6,12 +7,13 @@ import type { ApiUser } from "@/lib/types";
 interface AuthContextValue {
   user: ApiUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (input: { email: string; password: string; tenantName: string }) => Promise<void>;
+  register: (input: { username: string; password: string }) => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
-  forgotPassword: (email: string) => Promise<void>;
+  forgotPassword: (account: string) => Promise<void>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
+  updateProfile: (input: { username: string; email: string }) => Promise<void>;
   refreshSession: () => Promise<string | null>;
 }
 
@@ -60,10 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, [refreshSession]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     const payload = await apiRequest<AuthPayload>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     }, false);
     applyAuthPayload(payload);
   }, [applyAuthPayload]);
@@ -77,13 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (input: { email: string; password: string; tenantName: string }) => {
+  const register = useCallback(async (input: { username: string; password: string }) => {
     await apiRequest("/auth/register", {
       method: "POST",
       body: JSON.stringify({
-        email: input.email,
+        username: input.username,
         password: input.password,
-        tenant_name: input.tenantName,
       }),
     }, false);
   }, []);
@@ -95,10 +96,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, false);
   }, []);
 
-  const forgotPassword = useCallback(async (email: string) => {
+  const forgotPassword = useCallback(async (account: string) => {
     await apiRequest("/auth/forgot-password", {
       method: "POST",
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ account }),
     }, false);
   }, []);
 
@@ -107,6 +108,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       body: JSON.stringify({ token, new_password: newPassword }),
     }, false);
+  }, []);
+
+  const updateProfile = useCallback(async (input: { username: string; email: string }) => {
+    const payload = await apiRequest<{ user: ApiUser }>("/auth/me", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+    setUser(payload.user);
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
@@ -118,8 +127,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     verifyEmail,
     forgotPassword,
     resetPassword,
+    updateProfile,
     refreshSession,
-  }), [forgotPassword, loading, login, logout, refreshSession, register, resetPassword, user, verifyEmail]);
+  }), [forgotPassword, loading, login, logout, refreshSession, register, resetPassword, updateProfile, user, verifyEmail]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

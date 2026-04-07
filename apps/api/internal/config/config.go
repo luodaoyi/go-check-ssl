@@ -24,6 +24,7 @@ type Config struct {
 	DBDriver               string
 	DatabaseURL            string
 	AllowRegistration      bool
+	BootstrapAdminUsername string
 	BootstrapAdminEmail    string
 	BootstrapAdminPassword string
 	JWTSecret              string
@@ -46,7 +47,8 @@ func Load() (Config, error) {
 		DBDriver:               strings.ToLower(getString("DB_DRIVER", "sqlite")),
 		DatabaseURL:            getString("DATABASE_URL", "data/go-check-ssl.db"),
 		AllowRegistration:      getBool("ALLOW_REGISTRATION", true),
-		BootstrapAdminEmail:    getString("BOOTSTRAP_ADMIN_EMAIL", "admin@example.com"),
+		BootstrapAdminUsername: getString("BOOTSTRAP_ADMIN_USERNAME", ""),
+		BootstrapAdminEmail:    getString("BOOTSTRAP_ADMIN_EMAIL", ""),
 		BootstrapAdminPassword: getString("BOOTSTRAP_ADMIN_PASSWORD", "ChangeMe123!"),
 		JWTSecret:              getString("JWT_SECRET", "change-me-in-production"),
 		AccessTokenTTL:         getDuration("ACCESS_TOKEN_TTL", 15*time.Minute),

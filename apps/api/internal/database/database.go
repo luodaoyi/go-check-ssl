@@ -2,12 +2,16 @@ package database
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"go-check-ssl/apps/api/internal/config"
 	"go-check-ssl/apps/api/internal/models"
@@ -66,13 +70,39 @@ func EnsureBootstrap(ctx context.Context, db *gorm.DB, cfg config.Config, logger
 		return err
 	}
 
-	if strings.TrimSpace(cfg.BootstrapAdminEmail) == "" || strings.TrimSpace(cfg.BootstrapAdminPassword) == "" {
+	if strings.TrimSpace(cfg.BootstrapAdminPassword) == "" {
 		return nil
 	}
 
+	adminUsername := strings.TrimSpace(cfg.BootstrapAdminUsername)
+	if adminUsername == "" {
+		adminUsername = deriveBootstrapUsername(cfg.BootstrapAdminEmail)
+	}
+	adminUsernameNormalized := normalizeUsername(adminUsername)
+	if adminUsernameNormalized == "" {
+		adminUsername = "admin"
+		adminUsernameNormalized = "admin"
+	}
+
 	var existing models.User
-	err := db.WithContext(ctx).Where("email = ?", strings.ToLower(strings.TrimSpace(cfg.BootstrapAdminEmail))).First(&existing).Error
+	err := db.WithContext(ctx).Where("username_normalized = ?", adminUsernameNormalized).First(&existing).Error
 	if err == nil {
+		if existing.Role != models.RoleSuperAdmin {
+			return fmt.Errorf("bootstrap username %q already exists and is not a super admin", adminUsername)
+		}
+
+		updates := map[string]any{}
+		if strings.TrimSpace(cfg.BootstrapAdminEmail) != "" {
+			contactEmail, contactEmailNormalized := optionalNormalizedEmail(cfg.BootstrapAdminEmail)
+			updates["contact_email"] = contactEmail
+			updates["contact_email_normalized"] = contactEmailNormalized
+			updates["email_verified_at"] = now
+		}
+		if len(updates) > 0 {
+			if err := db.WithContext(ctx).Model(&models.User{}).Where("id = ?", existing.ID).Updates(updates).Error; err != nil {
+				return fmt.Errorf("update bootstrap admin: %w", err)
+			}
+		}
 		return nil
 	}
 	if err != nil && err != gorm.ErrRecordNotFound {
@@ -84,6 +114,17 @@ func EnsureBootstrap(ctx context.Context, db *gorm.DB, cfg config.Config, logger
 		return fmt.Errorf("hash bootstrap password: %w", err)
 	}
 
+	internalEmail, err := generateInternalEmail()
+	if err != nil {
+		return fmt.Errorf("generate bootstrap internal email: %w", err)
+	}
+
+	if normalized := strings.ToLower(strings.TrimSpace(cfg.BootstrapAdminEmail)); normalized != "" {
+		internalEmail = normalized
+	}
+
+	contactEmail, contactEmailNormalized := optionalNormalizedEmail(cfg.BootstrapAdminEmail)
+
 	tenant := models.Tenant{
 		Name: "Platform Admin",
 		Slug: "platform-admin",
@@ -94,11 +135,17 @@ func EnsureBootstrap(ctx context.Context, db *gorm.DB, cfg config.Config, logger
 	}
 
 	admin := models.User{
-		TenantID:        tenant.ID,
-		Email:           strings.ToLower(strings.TrimSpace(cfg.BootstrapAdminEmail)),
-		PasswordHash:    string(passwordHash),
-		Role:            models.RoleSuperAdmin,
-		EmailVerifiedAt: &now,
+		TenantID:               tenant.ID,
+		Username:               adminUsername,
+		UsernameNormalized:     adminUsernameNormalized,
+		Email:                  internalEmail,
+		ContactEmail:           contactEmail,
+		ContactEmailNormalized: contactEmailNormalized,
+		PasswordHash:           string(passwordHash),
+		Role:                   models.RoleSuperAdmin,
+	}
+	if contactEmail != nil {
+		admin.EmailVerifiedAt = &now
 	}
 
 	if err := db.WithContext(ctx).Create(&admin).Error; err != nil {
@@ -121,7 +168,7 @@ func EnsureBootstrap(ctx context.Context, db *gorm.DB, cfg config.Config, logger
 		return fmt.Errorf("bootstrap policy: %w", err)
 	}
 
-	logger.Info("bootstrap admin ensured", "email", admin.Email)
+	logger.Info("bootstrap admin ensured", "username", admin.Username, "email", cfg.BootstrapAdminEmail)
 	return nil
 }
 
@@ -147,4 +194,52 @@ func upsertSystemSetting(ctx context.Context, db *gorm.DB, key, value string) er
 		Key:   key,
 		Value: value,
 	}).FirstOrCreate(&setting).Error
+}
+
+var invalidBootstrapUsername = regexp.MustCompile(`[^\p{L}\p{N}._-]+`)
+
+func deriveBootstrapUsername(email string) string {
+	trimmed := strings.TrimSpace(email)
+	if trimmed == "" {
+		return "admin"
+	}
+	parts := strings.Split(trimmed, "@")
+	if len(parts) > 0 && strings.TrimSpace(parts[0]) != "" {
+		return sanitizeUsername(parts[0])
+	}
+	return "admin"
+}
+
+func sanitizeUsername(value string) string {
+	sanitized := invalidBootstrapUsername.ReplaceAllString(strings.TrimSpace(value), "-")
+	sanitized = strings.Trim(sanitized, "-._")
+	if sanitized == "" {
+		return "user"
+	}
+	if utf8.RuneCountInString(sanitized) > 32 {
+		runes := []rune(sanitized)
+		sanitized = string(runes[:32])
+	}
+	return sanitized
+}
+
+func normalizeUsername(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func optionalNormalizedEmail(value string) (*string, *string) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return nil, nil
+	}
+	contact := normalized
+	return &contact, &contact
+}
+
+func generateInternalEmail() (string, error) {
+	buffer := make([]byte, 8)
+	if _, err := rand.Read(buffer); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("user-%s@local.invalid", hex.EncodeToString(buffer)), nil
 }

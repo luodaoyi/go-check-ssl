@@ -1,9 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useI18n } from "@/lib/i18n";
 import type { ApiEndpoint, EndpointType } from "@/lib/types";
 
 interface EndpointFormValues {
@@ -49,25 +50,42 @@ export function EndpointForm({
   onSubmit: (payload: EndpointPayload) => Promise<void>;
   onCancel?: () => void;
 }) {
+  const { t } = useI18n();
   const form = useForm<EndpointFormValues>({
     defaultValues: endpointDefaults(endpoint),
   });
 
+  useEffect(() => {
+    form.reset(endpointDefaults(endpoint));
+  }, [endpoint, form]);
+
   const values = form.watch();
   const endpointType = values.type;
 
-  const requiredPlaceholder = useMemo(() => {
+  const primaryConfig = useMemo(() => {
     switch (endpointType) {
       case "email":
-        return "recipient@example.com";
+        return {
+          label: t("notifications.recipientEmailLabel"),
+          placeholder: t("notifications.primaryEmailPlaceholder"),
+        };
       case "telegram":
-        return "chat id";
+        return {
+          label: t("notifications.telegramChatIdLabel"),
+          placeholder: t("notifications.telegramChatPlaceholder"),
+        };
       case "webhook":
-        return "https://example.com/hook";
+        return {
+          label: t("notifications.webhookUrlLabel"),
+          placeholder: t("notifications.webhookUrlPlaceholder"),
+        };
       default:
-        return "";
+        return {
+          label: t("common.type"),
+          placeholder: "",
+        };
     }
-  }, [endpointType]);
+  }, [endpointType, t]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
     const config: Record<string, string> = {};
@@ -96,61 +114,69 @@ export function EndpointForm({
   });
 
   const validationError = (() => {
-    if (!values.name.trim()) return "Name is required";
-    if (values.type === "email" && !values.recipient_email.trim()) return "Recipient email is required";
-    if (values.type === "telegram" && !values.chat_id.trim()) return "Telegram chat id is required";
-    if (values.type === "webhook" && !values.url.trim()) return "Webhook URL is required";
+    if (!values.name.trim()) return t("validation.nameRequired");
+    if (values.type === "email" && !values.recipient_email.trim()) return t("validation.recipientEmailRequired");
+    if (values.type === "telegram" && !values.chat_id.trim()) return t("validation.telegramChatIdRequired");
+    if (values.type === "webhook" && !values.url.trim()) return t("validation.webhookUrlRequired");
     return null;
   })();
 
   return (
     <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => void handleSubmit(event)}>
       <div className="space-y-2">
-        <Label htmlFor="endpoint-name">Name</Label>
-        <Input id="endpoint-name" placeholder="Primary email" {...form.register("name")} />
+        <Label htmlFor="endpoint-name">{t("common.name")}</Label>
+        <Input id="endpoint-name" placeholder={t("notifications.addEndpointTitle")} {...form.register("name")} />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="endpoint-type">Type</Label>
+        <Label htmlFor="endpoint-type">{t("common.type")}</Label>
         <select
           id="endpoint-type"
           className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
           {...form.register("type")}
         >
-          <option value="email">Email</option>
-          <option value="telegram">Telegram</option>
-          <option value="webhook">Webhook</option>
+          <option value="email">{t("endpointType.email")}</option>
+          <option value="telegram">{t("endpointType.telegram")}</option>
+          <option value="webhook">{t("endpointType.webhook")}</option>
         </select>
       </div>
 
       <div className="space-y-2 md:col-span-2">
-        <Label htmlFor="endpoint-primary">{requiredPlaceholder}</Label>
+        <Label htmlFor="endpoint-primary">{primaryConfig.label}</Label>
         {endpointType === "email" ? (
-          <Input id="endpoint-primary" placeholder="recipient@example.com" {...form.register("recipient_email")} />
+          <Input id="endpoint-primary" placeholder={primaryConfig.placeholder} {...form.register("recipient_email")} />
         ) : null}
         {endpointType === "telegram" ? (
-          <Input id="endpoint-primary" placeholder="123456789" {...form.register("chat_id")} />
+          <Input id="endpoint-primary" placeholder={primaryConfig.placeholder} {...form.register("chat_id")} />
         ) : null}
         {endpointType === "webhook" ? (
-          <Input id="endpoint-primary" placeholder="https://example.com/webhook" {...form.register("url")} />
+          <Input id="endpoint-primary" placeholder={primaryConfig.placeholder} {...form.register("url")} />
         ) : null}
       </div>
 
       {endpointType === "webhook" ? (
         <>
           <div className="space-y-2">
-            <Label htmlFor="auth-header-name">Auth header name</Label>
-            <Input id="auth-header-name" placeholder="X-Webhook-Token" {...form.register("auth_header_name")} />
+            <Label htmlFor="auth-header-name">{t("notifications.authHeaderName")}</Label>
+            <Input
+              id="auth-header-name"
+              placeholder={t("notifications.authHeaderNamePlaceholder")}
+              {...form.register("auth_header_name")}
+            />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="auth-header-value">Auth header value</Label>
-            <Input id="auth-header-value" placeholder="secret" {...form.register("auth_header_value")} />
+            <Label htmlFor="auth-header-value">{t("notifications.authHeaderValue")}</Label>
+            <Input
+              id="auth-header-value"
+              placeholder={t("notifications.authHeaderValuePlaceholder")}
+              {...form.register("auth_header_value")}
+            />
           </div>
         </>
       ) : null}
 
       <label className="flex items-center gap-2 text-sm md:col-span-2">
         <input type="checkbox" className="h-4 w-4 rounded border-border" {...form.register("enabled")} />
-        Enabled
+        {t("common.enabled")}
       </label>
 
       {validationError ? <p className="text-sm text-destructive md:col-span-2">{validationError}</p> : null}
@@ -159,7 +185,7 @@ export function EndpointForm({
         <Button type="submit" disabled={Boolean(validationError)}>{submitLabel}</Button>
         {onCancel ? (
           <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
+            {t("common.cancel")}
           </Button>
         ) : null}
       </div>

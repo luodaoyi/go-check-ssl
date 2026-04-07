@@ -7,13 +7,13 @@ import (
 )
 
 type registerRequest struct {
-	Email      string `json:"email"`
+	Username   string `json:"username"`
 	Password   string `json:"password"`
 	TenantName string `json:"tenant_name"`
 }
 
 type loginRequest struct {
-	Email    string `json:"email"`
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
@@ -22,12 +22,17 @@ type verifyEmailRequest struct {
 }
 
 type forgotPasswordRequest struct {
-	Email string `json:"email"`
+	Account string `json:"account"`
 }
 
 type resetPasswordRequest struct {
 	Token       string `json:"token"`
 	NewPassword string `json:"new_password"`
+}
+
+type updateProfileRequest struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +43,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := s.auth.Register(r.Context(), auth.RegisterInput{
-		Email:      input.Email,
+		Username:   input.Username,
 		Password:   input.Password,
 		TenantName: input.TenantName,
 	})
@@ -49,7 +54,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, map[string]any{
-		"message": "registration successful, please verify your email",
+		"message": "registration successful, you can sign in now",
 		"user":    toAPIUser(*user),
 	})
 }
@@ -62,7 +67,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, tokens, err := s.auth.Login(r.Context(), auth.LoginInput{
-		Email:     input.Email,
+		Username:  input.Username,
 		Password:  input.Password,
 		UserAgent: r.UserAgent(),
 		IPAddress: r.RemoteAddr,
@@ -130,7 +135,7 @@ func (s *Server) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := s.auth.ForgotPassword(r.Context(), input.Email); err != nil {
+	if err := s.auth.ForgotPassword(r.Context(), input.Account); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -165,5 +170,31 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"user": toAPIUser(*user)})
+}
+
+func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
+	userInfo, ok := currentUser(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing authenticated user")
+		return
+	}
+
+	var input updateProfileRequest
+	if err := decodeJSON(r, &input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	user, err := s.auth.UpdateProfile(r.Context(), userInfo.ID, auth.UpdateProfileInput{
+		Username: input.Username,
+		Email:    input.Email,
+	})
+	if err != nil {
+		status, message := authStatus(err)
+		writeError(w, status, message)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{"user": toAPIUser(*user)})
 }

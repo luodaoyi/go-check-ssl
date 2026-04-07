@@ -24,43 +24,44 @@ type AuthUser struct {
 	ID       uint
 	TenantID uint
 	Role     models.UserRole
-	Email    string
+	Username string
 }
 
 type APIUser struct {
 	ID            uint            `json:"id"`
 	TenantID      uint            `json:"tenant_id"`
-	Email         string          `json:"email"`
+	Username      string          `json:"username"`
+	Email         string          `json:"email,omitempty"`
 	Role          models.UserRole `json:"role"`
 	EmailVerified bool            `json:"email_verified"`
 	LastLoginAt   *time.Time      `json:"last_login_at,omitempty"`
 }
 
 type APIDomain struct {
-	ID                   uint               `json:"id"`
-	Hostname             string             `json:"hostname"`
-	Port                 int                `json:"port"`
-	Enabled              bool               `json:"enabled"`
+	ID                   uint                `json:"id"`
+	Hostname             string              `json:"hostname"`
+	Port                 int                 `json:"port"`
+	Enabled              bool                `json:"enabled"`
 	Status               models.DomainStatus `json:"status"`
-	CertExpiresAt        *time.Time         `json:"cert_expires_at,omitempty"`
-	DaysRemaining        *int               `json:"days_remaining,omitempty"`
-	LastError            string             `json:"last_error,omitempty"`
-	LastCheckedAt        *time.Time         `json:"last_checked_at,omitempty"`
-	LastSuccessfulAt     *time.Time         `json:"last_successful_at,omitempty"`
-	NextCheckAt          time.Time          `json:"next_check_at"`
-	CheckIntervalSeconds int                `json:"check_interval_seconds"`
-	CreatedAt            time.Time          `json:"created_at"`
-	UpdatedAt            time.Time          `json:"updated_at"`
+	CertExpiresAt        *time.Time          `json:"cert_expires_at,omitempty"`
+	DaysRemaining        *int                `json:"days_remaining,omitempty"`
+	LastError            string              `json:"last_error,omitempty"`
+	LastCheckedAt        *time.Time          `json:"last_checked_at,omitempty"`
+	LastSuccessfulAt     *time.Time          `json:"last_successful_at,omitempty"`
+	NextCheckAt          time.Time           `json:"next_check_at"`
+	CheckIntervalSeconds int                 `json:"check_interval_seconds"`
+	CreatedAt            time.Time           `json:"created_at"`
+	UpdatedAt            time.Time           `json:"updated_at"`
 }
 
 type APIEndpoint struct {
-	ID           uint                                 `json:"id"`
-	Name         string                               `json:"name"`
-	Type         models.NotificationEndpointType      `json:"type"`
-	Enabled      bool                                 `json:"enabled"`
-	ConfigMasked map[string]string                    `json:"config_masked"`
-	CreatedAt    time.Time                            `json:"created_at"`
-	UpdatedAt    time.Time                            `json:"updated_at"`
+	ID           uint                            `json:"id"`
+	Name         string                          `json:"name"`
+	Type         models.NotificationEndpointType `json:"type"`
+	Enabled      bool                            `json:"enabled"`
+	ConfigMasked map[string]string               `json:"config_masked"`
+	CreatedAt    time.Time                       `json:"created_at"`
+	UpdatedAt    time.Time                       `json:"updated_at"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
@@ -98,12 +99,18 @@ func parseUintParam(r *http.Request, name string) (uint, error) {
 }
 
 func toAPIUser(user models.User) APIUser {
+	email := ""
+	if user.ContactEmail != nil {
+		email = *user.ContactEmail
+	}
+
 	return APIUser{
 		ID:            user.ID,
 		TenantID:      user.TenantID,
-		Email:         user.Email,
+		Username:      user.Username,
+		Email:         email,
 		Role:          user.Role,
-		EmailVerified: user.EmailVerifiedAt != nil,
+		EmailVerified: email != "" && user.EmailVerifiedAt != nil,
 		LastLoginAt:   user.LastLoginAt,
 	}
 }

@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, BrowserRouter as Router, Routes } from "react-
 
 import { AppShell } from "@/components/layout/app-shell";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 import { AdminPage } from "@/pages/admin-page";
 import { DashboardPage } from "@/pages/dashboard-page";
 import { ForgotPasswordPage } from "@/pages/forgot-password-page";
@@ -10,13 +11,15 @@ import { LoginPage } from "@/pages/login-page";
 import { NotificationsPage } from "@/pages/notifications-page";
 import { RegisterPage } from "@/pages/register-page";
 import { ResetPasswordPage } from "@/pages/reset-password-page";
+import { SettingsPage } from "@/pages/settings-page";
 import { VerifyEmailPage } from "@/pages/verify-email-page";
 
 function ProtectedLayout() {
   const { loading, user } = useAuth();
+  const { t } = useI18n();
 
   if (loading) {
-    return <div className="page-shell py-20">Loading session…</div>;
+    return <div className="page-shell py-20">{t("common.loadingSession")}</div>;
   }
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -34,8 +37,9 @@ function AdminRoute() {
 
 function PublicOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
+  const { t } = useI18n();
   if (loading) {
-    return <div className="page-shell py-20">Loading session…</div>;
+    return <div className="page-shell py-20">{t("common.loadingSession")}</div>;
   }
   if (user) {
     return <Navigate to="/app" replace />;
@@ -85,6 +89,7 @@ export function AppRouter() {
         <Route path="/app" element={<ProtectedLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route element={<AdminRoute />}>
             <Route path="admin" element={<AdminPage />} />
           </Route>

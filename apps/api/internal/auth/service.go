@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"go-check-ssl/apps/api/internal/config"
 	"go-check-ssl/apps/api/internal/database"
@@ -34,16 +35,21 @@ var (
 )
 
 type RegisterInput struct {
-	Email      string
+	Username   string
 	Password   string
 	TenantName string
 }
 
 type LoginInput struct {
-	Email     string
+	Username  string
 	Password  string
 	UserAgent string
 	IPAddress string
+}
+
+type UpdateProfileInput struct {
+	Username string
+	Email    string
 }
 
 type ResetPasswordInput struct {
@@ -62,7 +68,7 @@ type AccessClaims struct {
 	UserID   uint            `json:"uid"`
 	TenantID uint            `json:"tenant_id"`
 	Role     models.UserRole `json:"role"`
-	Email    string          `json:"email"`
+	Username string          `json:"username"`
 	jwt.RegisteredClaims
 }
 
@@ -95,14 +101,18 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (*models.Us
 		return nil, ErrRegistrationDisabled
 	}
 
-	email := normalizeEmail(input.Email)
+	username := strings.TrimSpace(input.Username)
+	usernameNormalized := normalizeUsername(input.Username)
+	if err := validateUsername(username); err != nil {
+		return nil, err
+	}
 	if err := validatePassword(input.Password); err != nil {
 		return nil, err
 	}
 
 	tenantName := strings.TrimSpace(input.TenantName)
 	if tenantName == "" {
-		tenantName = deriveTenantName(email)
+		tenantName = deriveTenantName(username)
 	}
 
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
@@ -111,11 +121,10 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (*models.Us
 	}
 
 	var createdUser models.User
-	var verificationToken string
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing models.User
-		if err := tx.Where("email = ?", email).First(&existing).Error; err == nil {
+		if err := tx.Where("username_normalized = ?", usernameNormalized).First(&existing).Error; err == nil {
 			return ErrConflict
 		} else if err != nil && err != gorm.ErrRecordNotFound {
 			return err
@@ -131,11 +140,18 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (*models.Us
 			return err
 		}
 
+		internalEmail, err := generateInternalEmail()
+		if err != nil {
+			return err
+		}
+
 		createdUser = models.User{
-			TenantID:     tenant.ID,
-			Email:        email,
-			PasswordHash: string(passwordHash),
-			Role:         models.RoleTenantOwner,
+			TenantID:           tenant.ID,
+			Username:           username,
+			UsernameNormalized: usernameNormalized,
+			Email:              internalEmail,
+			PasswordHash:       string(passwordHash),
+			Role:               models.RoleTenantOwner,
 		}
 		if err := tx.Create(&createdUser).Error; err != nil {
 			return err
@@ -152,37 +168,20 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (*models.Us
 		if err := policy.SetEndpointIDs([]uint{}); err != nil {
 			return err
 		}
-		if err := tx.Create(&policy).Error; err != nil {
-			return err
-		}
-
-		verificationToken, err = createTokenRecord(tx, &models.EmailVerificationToken{
-			UserID:    createdUser.ID,
-			ExpiresAt: s.now().Add(48 * time.Hour),
-		})
-		return err
+		return tx.Create(&policy).Error
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	link := strings.TrimRight(s.cfg.AppBaseURL, "/") + "/verify-email?token=" + verificationToken
-	if err := s.mailer.Send(ctx, mailer.Message{
-		To:      createdUser.Email,
-		Subject: "Verify your email",
-		Body:    fmt.Sprintf("Welcome to go-check-ssl! Verify your email by opening: %s", link),
-	}); err != nil {
-		s.logger.Error("send verification email", "error", err, "email", createdUser.Email)
 	}
 
 	return &createdUser, nil
 }
 
 func (s *Service) Login(ctx context.Context, input LoginInput) (*models.User, *SessionTokens, error) {
-	email := normalizeEmail(input.Email)
+	usernameNormalized := normalizeUsername(input.Username)
 
 	var user models.User
-	if err := s.db.WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("username_normalized = ?", usernameNormalized).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil, ErrInvalidCredentials
 		}
@@ -191,9 +190,6 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*models.User, *S
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		return nil, nil, ErrInvalidCredentials
-	}
-	if user.Role != models.RoleSuperAdmin && user.EmailVerifiedAt == nil {
-		return nil, nil, ErrEmailNotVerified
 	}
 
 	tokens, err := s.createSession(ctx, &user, input.UserAgent, input.IPAddress)
@@ -287,15 +283,13 @@ func (s *Service) VerifyEmail(ctx context.Context, rawToken string) error {
 	})
 }
 
-func (s *Service) ForgotPassword(ctx context.Context, email string) error {
-	email = normalizeEmail(email)
-
-	var user models.User
-	if err := s.db.WithContext(ctx).Where("email = ?", email).First(&user).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil
-		}
+func (s *Service) ForgotPassword(ctx context.Context, account string) error {
+	user, err := s.findUserForPasswordReset(ctx, account)
+	if err != nil {
 		return err
+	}
+	if user == nil {
+		return nil
 	}
 
 	var rawToken string
@@ -312,11 +306,11 @@ func (s *Service) ForgotPassword(ctx context.Context, email string) error {
 
 	link := strings.TrimRight(s.cfg.AppBaseURL, "/") + "/reset-password?token=" + rawToken
 	if err := s.mailer.Send(ctx, mailer.Message{
-		To:      user.Email,
+		To:      *user.ContactEmail,
 		Subject: "Reset your password",
 		Body:    fmt.Sprintf("Reset your password by opening: %s", link),
 	}); err != nil {
-		s.logger.Error("send reset email", "error", err, "email", user.Email)
+		s.logger.Error("send reset email", "error", err, "email", *user.ContactEmail)
 	}
 
 	return nil
@@ -363,6 +357,61 @@ func (s *Service) ResetPassword(ctx context.Context, input ResetPasswordInput) e
 func (s *Service) GetUserByID(ctx context.Context, userID uint) (*models.User, error) {
 	var user models.User
 	if err := s.db.WithContext(ctx).First(&user, userID).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (s *Service) UpdateProfile(ctx context.Context, userID uint, input UpdateProfileInput) (*models.User, error) {
+	username := strings.TrimSpace(input.Username)
+	usernameNormalized := normalizeUsername(input.Username)
+	if err := validateUsername(username); err != nil {
+		return nil, err
+	}
+
+	email, emailNormalized := optionalNormalizedEmail(input.Email)
+
+	var user models.User
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.First(&user, userID).Error; err != nil {
+			return err
+		}
+
+		var usernameOwner models.User
+		if err := tx.Where("username_normalized = ? AND id <> ?", usernameNormalized, userID).First(&usernameOwner).Error; err == nil {
+			return ErrConflict
+		} else if err != nil && err != gorm.ErrRecordNotFound {
+			return err
+		}
+
+		if emailNormalized != nil {
+			var emailOwner models.User
+			if err := tx.Where("contact_email_normalized = ? AND id <> ?", *emailNormalized, userID).First(&emailOwner).Error; err == nil {
+				return ErrConflict
+			} else if err != nil && err != gorm.ErrRecordNotFound {
+				return err
+			}
+		}
+
+		updates := map[string]any{
+			"username":                 username,
+			"username_normalized":      usernameNormalized,
+			"contact_email":            email,
+			"contact_email_normalized": emailNormalized,
+			"updated_at":               s.now(),
+		}
+
+		if user.ContactEmail == nil || email == nil || *user.ContactEmail != *email {
+			updates["email_verified_at"] = nil
+		}
+
+		if err := tx.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+			return err
+		}
+
+		return tx.First(&user, userID).Error
+	})
+	if err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -435,7 +484,7 @@ func (s *Service) buildAccessToken(user *models.User) (string, time.Time, error)
 		UserID:   user.ID,
 		TenantID: user.TenantID,
 		Role:     user.Role,
-		Email:    user.Email,
+		Username: user.Username,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   strconv.FormatUint(uint64(user.ID), 10),
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
@@ -488,9 +537,29 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+func normalizeUsername(username string) string {
+	return strings.ToLower(strings.TrimSpace(username))
+}
+
 func validatePassword(password string) error {
 	if len(strings.TrimSpace(password)) < 8 {
 		return fmt.Errorf("password must be at least 8 characters")
+	}
+	return nil
+}
+
+var usernamePattern = regexp.MustCompile(`^[\p{L}\p{N}][\p{L}\p{N}._-]{2,31}$`)
+
+func validateUsername(username string) error {
+	username = strings.TrimSpace(username)
+	if utf8.RuneCountInString(username) < 3 {
+		return fmt.Errorf("username must be at least 3 characters")
+	}
+	if utf8.RuneCountInString(username) > 32 {
+		return fmt.Errorf("username must be at most 32 characters")
+	}
+	if !usernamePattern.MatchString(username) {
+		return fmt.Errorf("username may only contain letters, numbers, dot, underscore, and dash")
 	}
 	return nil
 }
@@ -523,10 +592,10 @@ func slugify(value string) string {
 	return normalized
 }
 
-func deriveTenantName(email string) string {
-	parts := strings.Split(email, "@")
-	if len(parts) > 0 && strings.TrimSpace(parts[0]) != "" {
-		return parts[0] + "'s workspace"
+func deriveTenantName(username string) string {
+	username = strings.TrimSpace(username)
+	if username != "" {
+		return username + "'s workspace"
 	}
 	return "New workspace"
 }
@@ -536,4 +605,54 @@ func truncate(value string, limit int) string {
 		return value
 	}
 	return value[:limit]
+}
+
+func optionalNormalizedEmail(value string) (*string, *string) {
+	normalized := normalizeEmail(value)
+	if normalized == "" {
+		return nil, nil
+	}
+	contact := normalized
+	return &contact, &contact
+}
+
+func generateInternalEmail() (string, error) {
+	raw, err := generateRawToken(12)
+	if err != nil {
+		return "", err
+	}
+	return "user-" + strings.ToLower(raw) + "@local.invalid", nil
+}
+
+func (s *Service) findUserForPasswordReset(ctx context.Context, account string) (*models.User, error) {
+	account = strings.TrimSpace(account)
+	if account == "" {
+		return nil, nil
+	}
+
+	var user models.User
+	username := normalizeUsername(account)
+	if err := s.db.WithContext(ctx).Where("username_normalized = ?", username).First(&user).Error; err == nil {
+		if user.ContactEmail != nil {
+			return &user, nil
+		}
+		return nil, nil
+	} else if err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+
+	email := normalizeEmail(account)
+	if email == "" {
+		return nil, nil
+	}
+	if err := s.db.WithContext(ctx).Where("contact_email_normalized = ?", email).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if user.ContactEmail == nil {
+		return nil, nil
+	}
+	return &user, nil
 }

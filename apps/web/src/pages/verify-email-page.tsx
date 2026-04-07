@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
+import { PublicPageShell } from "@/components/layout/public-page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
+import { useI18n } from "@/lib/i18n";
 
 export function VerifyEmailPage() {
   const { verifyEmail } = useAuth();
+  const { t } = useI18n();
   const [params] = useSearchParams();
   const token = useMemo(() => params.get("token") ?? "", [params]);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -19,30 +22,30 @@ export function VerifyEmailPage() {
       .then(() => setStatus("success"))
       .catch((reason) => {
         setStatus("error");
-        setError(reason instanceof Error ? reason.message : "Unable to verify email");
+        setError(reason instanceof Error ? reason.message : t("auth.verifyEmailFallbackError"));
       });
-  }, [token, verifyEmail]);
+  }, [t, token, verifyEmail]);
 
   return (
-    <div className="page-shell flex min-h-screen items-center justify-center">
+    <PublicPageShell>
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>Verify email</CardTitle>
-          <CardDescription>Complete email verification to unlock login for tenant owner accounts.</CardDescription>
+          <CardTitle>{t("auth.verifyEmailTitle")}</CardTitle>
+          <CardDescription>{t("auth.verifyEmailDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {status === "loading" ? <p>Verifying your email…</p> : null}
-          {status === "success" ? <p className="text-emerald-700">Email verified successfully. You can now sign in.</p> : null}
+          {status === "loading" ? <p>{t("auth.verifyingEmail")}</p> : null}
+          {status === "success" ? <p className="text-emerald-700">{t("auth.verifyEmailSuccess")}</p> : null}
           {status === "error" ? <p className="text-destructive">{error}</p> : null}
-          {!token ? <p className="text-destructive">Missing verification token.</p> : null}
+          {!token ? <p className="text-destructive">{t("auth.missingVerifyToken")}</p> : null}
           <Button variant="outline" onClick={() => window.location.assign("/login")}>
-            Back to login
+            {t("auth.backToLogin")}
           </Button>
           <p className="text-sm text-muted-foreground">
-            Need a new account? <Link to="/register">Register again</Link>
+            {t("auth.needNewAccount")} <Link to="/register">{t("auth.registerAgain")}</Link>
           </p>
         </CardContent>
       </Card>
-    </div>
+    </PublicPageShell>
   );
 }

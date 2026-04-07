@@ -5,7 +5,8 @@ export type EndpointType = "email" | "telegram" | "webhook";
 export interface ApiUser {
   id: number;
   tenant_id: number;
-  email: string;
+  username: string;
+  email?: string;
   role: UserRole;
   email_verified: boolean;
   last_login_at?: string;

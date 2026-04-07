@@ -4,9 +4,10 @@ import (
 	"context"
 	"net/http"
 
+	"go-check-ssl/apps/api/internal/auth"
 	"go-check-ssl/apps/api/internal/database"
-	"go-check-ssl/apps/api/internal/notify"
 	"go-check-ssl/apps/api/internal/models"
+	"go-check-ssl/apps/api/internal/notify"
 
 	"gorm.io/gorm"
 )
@@ -124,6 +125,36 @@ func (s *Server) handleAdminGetUser(w http.ResponseWriter, r *http.Request) {
 		"endpoints": endpoints,
 		"policies":  policies,
 	})
+}
+
+func (s *Server) handleAdminUpdateUserProfile(w http.ResponseWriter, r *http.Request) {
+	user, _, err := s.loadManagedUser(r.Context(), r)
+	if err != nil {
+		if isNotFound(err) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var input updateProfileRequest
+	if err := decodeJSON(r, &input); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	updated, err := s.auth.UpdateProfile(r.Context(), user.ID, auth.UpdateProfileInput{
+		Username: input.Username,
+		Email:    input.Email,
+	})
+	if err != nil {
+		status, message := authStatus(err)
+		writeError(w, status, message)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"user": toAPIUser(*updated)})
 }
 
 func (s *Server) handleAdminCreateDomain(w http.ResponseWriter, r *http.Request) {

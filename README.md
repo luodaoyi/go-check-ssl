@@ -4,7 +4,7 @@
 
 ## 功能概览
 
-- 用户注册、登录、邮箱验证、忘记密码/重置密码
+- 用户名注册、用户名登录、可选邮箱绑定、忘记密码/重置密码
 - 域名管理与手动/自动证书检测
 - 通知渠道：Email、Telegram、Generic Webhook
 - 用户默认通知策略 + 域名级覆盖
@@ -67,6 +67,9 @@ docker compose up --build
 ```
 
 应用会监听 `8080` 端口，并在存在前端产物时同时提供静态站点服务。
+
+管理员初始化默认使用 `BOOTSTRAP_ADMIN_USERNAME` + `BOOTSTRAP_ADMIN_PASSWORD`。
+`BOOTSTRAP_ADMIN_EMAIL` 为可选项，不再要求注册时绑定邮箱。
 
 
 ## SQLite 说明

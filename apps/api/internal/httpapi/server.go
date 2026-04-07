@@ -70,6 +70,7 @@ func (s *Server) Router() http.Handler {
 		r.Group(func(authenticated chi.Router) {
 			authenticated.Use(s.requireAuth)
 			authenticated.Get("/me", s.handleMe)
+			authenticated.Put("/me", s.handleUpdateMe)
 		})
 	})
 
@@ -106,6 +107,7 @@ func (s *Server) Router() http.Handler {
 			admin.Put("/settings/registration", s.handleAdminSetRegistration)
 			admin.Get("/users", s.handleAdminListUsers)
 			admin.Get("/users/{userID}", s.handleAdminGetUser)
+			admin.Put("/users/{userID}/profile", s.handleAdminUpdateUserProfile)
 
 			admin.Post("/users/{userID}/domains", s.handleAdminCreateDomain)
 			admin.Put("/users/{userID}/domains/{domainID}", s.handleAdminUpdateDomain)
@@ -154,7 +156,7 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 			ID:       claims.UserID,
 			TenantID: claims.TenantID,
 			Role:     claims.Role,
-			Email:    claims.Email,
+			Username: claims.Username,
 		})))
 	})
 }
