@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useApiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
@@ -17,6 +18,7 @@ interface FormValues {
 export function ResetPasswordPage() {
   const { resetPassword } = useAuth();
   const { t } = useI18n();
+  const getApiErrorMessage = useApiErrorMessage();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const token = useMemo(() => params.get("token") ?? "", [params]);
@@ -29,7 +31,7 @@ export function ResetPasswordPage() {
       await resetPassword(token, values.password);
       navigate("/login");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("auth.resetPasswordFallbackError"));
+      setError(getApiErrorMessage(reason, t("auth.resetPasswordFallbackError")));
     }
   });
 
@@ -58,3 +60,6 @@ export function ResetPasswordPage() {
     </PublicPageShell>
   );
 }
+
+
+

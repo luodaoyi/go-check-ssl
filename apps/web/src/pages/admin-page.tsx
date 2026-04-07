@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/api";
+import { useApiErrorMessage } from "@/lib/api-error";
 import { useI18n } from "@/lib/i18n";
 import type { AdminUserDetail, AdminUserListItem, ApiDomain, ApiEndpoint } from "@/lib/types";
 
@@ -21,6 +22,7 @@ interface ProfileFormValues {
 
 export function AdminPage() {
   const { t } = useI18n();
+  const getApiErrorMessage = useApiErrorMessage();
   const queryClient = useQueryClient();
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [editingDomain, setEditingDomain] = useState<ApiDomain | null>(null);
@@ -215,7 +217,7 @@ export function AdminPage() {
       await profileMutation.mutateAsync(values);
     } catch (reason) {
       setProfileMessage(null);
-      setProfileError(reason instanceof Error ? reason.message : t("settings.saveError"));
+      setProfileError(getApiErrorMessage(reason, t("settings.saveError")));
     }
   });
 
@@ -426,3 +428,6 @@ export function AdminPage() {
     </div>
   );
 }
+
+
+

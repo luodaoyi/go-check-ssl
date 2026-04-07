@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useApiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
@@ -18,6 +19,7 @@ interface LoginFormValues {
 export function LoginPage() {
   const { login } = useAuth();
   const { t } = useI18n();
+  const getApiErrorMessage = useApiErrorMessage();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const form = useForm<LoginFormValues>({
@@ -33,7 +35,7 @@ export function LoginPage() {
       await login(values.username, values.password);
       navigate("/app");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("auth.loginFallbackError"));
+      setError(getApiErrorMessage(reason, t("auth.loginFallbackError")));
     }
   });
 
@@ -67,3 +69,6 @@ export function LoginPage() {
     </PublicPageShell>
   );
 }
+
+
+

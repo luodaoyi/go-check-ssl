@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useApiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
@@ -16,6 +17,7 @@ interface SettingsFormValues {
 export function SettingsPage() {
   const { user, updateProfile } = useAuth();
   const { t } = useI18n();
+  const getApiErrorMessage = useApiErrorMessage();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const form = useForm<SettingsFormValues>({
@@ -39,7 +41,7 @@ export function SettingsPage() {
       await updateProfile(values);
       setMessage(t("settings.saveSuccess"));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("settings.saveError"));
+      setError(getApiErrorMessage(reason, t("settings.saveError")));
     }
   });
 
@@ -68,3 +70,6 @@ export function SettingsPage() {
     </Card>
   );
 }
+
+
+

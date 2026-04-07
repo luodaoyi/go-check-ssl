@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useApiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
@@ -18,6 +19,7 @@ interface RegisterFormValues {
 export function RegisterPage() {
   const { register: registerAccount } = useAuth();
   const { t } = useI18n();
+  const getApiErrorMessage = useApiErrorMessage();
   const navigate = useNavigate();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function RegisterPage() {
       setMessage(t("auth.registrationSuccess"));
       navigate("/login");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : t("auth.registrationFallbackError"));
+      setError(getApiErrorMessage(reason, t("auth.registrationFallbackError")));
     }
   });
 
@@ -70,3 +72,6 @@ export function RegisterPage() {
     </PublicPageShell>
   );
 }
+
+
+

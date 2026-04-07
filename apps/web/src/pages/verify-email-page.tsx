@@ -4,12 +4,14 @@ import { Link, useSearchParams } from "react-router-dom";
 import { PublicPageShell } from "@/components/layout/public-page-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useApiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
 export function VerifyEmailPage() {
   const { verifyEmail } = useAuth();
   const { t } = useI18n();
+  const getApiErrorMessage = useApiErrorMessage();
   const [params] = useSearchParams();
   const token = useMemo(() => params.get("token") ?? "", [params]);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -22,9 +24,9 @@ export function VerifyEmailPage() {
       .then(() => setStatus("success"))
       .catch((reason) => {
         setStatus("error");
-        setError(reason instanceof Error ? reason.message : t("auth.verifyEmailFallbackError"));
+        setError(getApiErrorMessage(reason, t("auth.verifyEmailFallbackError")));
       });
-  }, [t, token, verifyEmail]);
+  }, [getApiErrorMessage, t, token, verifyEmail]);
 
   return (
     <PublicPageShell>
@@ -49,3 +51,7 @@ export function VerifyEmailPage() {
     </PublicPageShell>
   );
 }
+
+
+
+
