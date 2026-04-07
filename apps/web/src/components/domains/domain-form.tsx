@@ -11,6 +11,23 @@ import type { ApiDomain } from "@/lib/types";
 
 type Translator = ReturnType<typeof useI18n>["t"];
 
+const intervalPresetOptions = [86400, 259200, 604800, 1209600, 2592000] as const;
+const intervalPresetValues = [...intervalPresetOptions.map(String), "custom"] as const;
+type IntervalPresetValue = (typeof intervalPresetValues)[number];
+
+function presetForInterval(seconds?: number): { interval_preset: IntervalPresetValue; custom_interval_seconds: string } {
+  if (!seconds) {
+    return { interval_preset: "86400", custom_interval_seconds: "" };
+  }
+
+  const preset = intervalPresetOptions.find((value) => value === seconds);
+  if (preset) {
+    return { interval_preset: String(preset) as IntervalPresetValue, custom_interval_seconds: "" };
+  }
+
+  return { interval_preset: "custom", custom_interval_seconds: String(seconds) };
+}
+
 function createDomainSchema(t: Translator) {
   return z.object({
     hostname: z.string().trim().min(1, t("validation.hostnameRequired")),
@@ -21,20 +38,46 @@ function createDomainSchema(t: Translator) {
       .max(65535, t("validation.portRange")),
     target_ip: z.string().trim(),
     enabled: z.boolean(),
-    check_interval_seconds: z.coerce
-      .number()
-      .int(t("validation.portInvalid"))
-      .min(60, t("validation.minInterval")),
-  });
+    interval_preset: z.enum(intervalPresetValues),
+    custom_interval_seconds: z.string().trim(),
+  }).superRefine((value, ctx) => {
+    const custom = value.custom_interval_seconds.trim();
+    if (custom === "") {
+      if (value.interval_preset === "custom") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: t("validation.minInterval"),
+          path: ["custom_interval_seconds"],
+        });
+      }
+      return;
+    }
+
+    const parsed = Number(custom);
+    if (!Number.isInteger(parsed) || parsed < 60) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: t("validation.minInterval"),
+        path: ["custom_interval_seconds"],
+      });
+    }
+  }).transform(({ custom_interval_seconds, interval_preset, ...rest }) => ({
+    ...rest,
+    check_interval_seconds: custom_interval_seconds.trim()
+      ? Number(custom_interval_seconds.trim())
+      : Number(interval_preset),
+  }));
 }
 
 function defaultValues(domain?: ApiDomain) {
+  const interval = presetForInterval(domain?.check_interval_seconds);
   return {
     hostname: domain?.hostname ?? "",
     port: domain?.port ?? 443,
     target_ip: domain?.target_ip ?? "",
     enabled: domain?.enabled ?? true,
-    check_interval_seconds: domain?.check_interval_seconds ?? 3600,
+    interval_preset: interval.interval_preset,
+    custom_interval_seconds: interval.custom_interval_seconds,
   };
 }
 
@@ -71,6 +114,8 @@ export function DomainForm({
     }
   });
 
+  const selectedPreset = form.watch("interval_preset");
+
   return (
     <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => void handleSubmit(event)}>
       <div className="space-y-2 md:col-span-2">
@@ -92,13 +137,37 @@ export function DomainForm({
         <p className="text-xs text-muted-foreground">{t("domains.targetIpHint")}</p>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="check_interval_seconds">{t("domains.checkIntervalLabel")}</Label>
+        <Label htmlFor="interval_preset">{t("domains.intervalPresetLabel")}</Label>
+        <select
+          id="interval_preset"
+          className="form-select"
+          {...form.register("interval_preset")}
+        >
+          {intervalPresetOptions.map((seconds) => (
+            <option key={seconds} value={seconds}>
+              {t("domains.intervalPresetDays", { days: Math.round(seconds / 86400) })}
+            </option>
+          ))}
+          <option value="custom">{t("domains.intervalCustomOption")}</option>
+        </select>
+        <p className="text-xs text-muted-foreground">{t("domains.intervalPresetHint")}</p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="custom_interval_seconds">{t("domains.customIntervalLabel")}</Label>
         <Input
-          id="check_interval_seconds"
+          id="custom_interval_seconds"
           type="number"
-          error={form.formState.errors.check_interval_seconds?.message}
-          {...form.register("check_interval_seconds")}
+          placeholder={selectedPreset === "custom" ? "3600" : String(Number(selectedPreset))}
+          error={form.formState.errors.custom_interval_seconds?.message}
+          {...form.register("custom_interval_seconds", {
+            onChange: (event) => {
+              if (event.target.value.trim() !== "") {
+                form.setValue("interval_preset", "custom", { shouldDirty: true, shouldValidate: false });
+              }
+            },
+          })}
         />
+        <p className="text-xs text-muted-foreground">{t("domains.customIntervalHint")}</p>
       </div>
       <label className="flex items-center gap-2 text-sm md:col-span-2">
         <input type="checkbox" className="h-4 w-4 border border-border accent-primary" {...form.register("enabled")} />

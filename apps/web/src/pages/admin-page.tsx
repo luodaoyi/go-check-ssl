@@ -2,10 +2,6 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { DomainForm, type DomainPayload } from "@/components/domains/domain-form";
-import { DomainPanel } from "@/components/domains/domain-panel";
-import { EndpointForm, type EndpointPayload } from "@/components/notifications/endpoint-form";
-import { PolicyForm, type PolicyPayload } from "@/components/notifications/policy-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,405 +10,248 @@ import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/api";
 import { useApiErrorMessage } from "@/lib/api-error";
 import { useI18n } from "@/lib/i18n";
-import type { AdminUserDetail, AdminUserListItem, ApiDomain, ApiEndpoint } from "@/lib/types";
+import type { AdminTenantDetail, AdminTenantListItem } from "@/lib/types";
 
-interface ProfileFormValues {
-  username: string;
-  email: string;
+interface PasswordFormValues {
+  password: string;
 }
 
 export function AdminPage() {
   const { t } = useI18n();
   const getApiErrorMessage = useApiErrorMessage();
   const queryClient = useQueryClient();
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [editingDomain, setEditingDomain] = useState<ApiDomain | null>(null);
-  const [editingEndpoint, setEditingEndpoint] = useState<ApiEndpoint | null>(null);
-  const [selectedPolicyDomainId, setSelectedPolicyDomainId] = useState<number | null>(null);
-  const [profileMessage, setProfileMessage] = useState<string | null>(null);
-  const [profileError, setProfileError] = useState<string | null>(null);
+  const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const profileForm = useForm<ProfileFormValues>({
+  const passwordForm = useForm<PasswordFormValues>({
     defaultValues: {
-      username: "",
-      email: "",
+      password: "",
     },
   });
 
-  const usersQuery = useQuery({
-    queryKey: ["admin-users"],
-    queryFn: () => apiRequest<{ users: AdminUserListItem[] }>("/admin/users"),
+  const tenantsQuery = useQuery({
+    queryKey: ["admin-tenants"],
+    queryFn: () => apiRequest<{ tenants: AdminTenantListItem[] }>("/admin/tenants"),
   });
 
   useEffect(() => {
-    if (!selectedUserId && usersQuery.data?.users.length) {
-      setSelectedUserId(usersQuery.data.users[0].user.id);
+    if (!selectedTenantId && tenantsQuery.data?.tenants.length) {
+      setSelectedTenantId(tenantsQuery.data.tenants[0].tenant.id);
     }
-  }, [selectedUserId, usersQuery.data?.users]);
+  }, [selectedTenantId, tenantsQuery.data?.tenants]);
 
   const detailQuery = useQuery({
-    queryKey: ["admin-user-detail", selectedUserId],
-    enabled: Boolean(selectedUserId),
-    queryFn: () => apiRequest<AdminUserDetail>(`/admin/users/${selectedUserId}`),
+    queryKey: ["admin-tenant", selectedTenantId],
+    enabled: Boolean(selectedTenantId),
+    queryFn: () => apiRequest<AdminTenantDetail>(`/admin/tenants/${selectedTenantId}`),
   });
 
-  useEffect(() => {
-    profileForm.reset({
-      username: detailQuery.data?.user.username ?? "",
-      email: detailQuery.data?.user.email ?? "",
-    });
-    setProfileMessage(null);
-    setProfileError(null);
-  }, [detailQuery.data?.user.email, detailQuery.data?.user.username, profileForm]);
-
-  const settingsQuery = useQuery({
-    queryKey: ["admin-settings"],
-    queryFn: () => apiRequest<{ allow_registration: boolean }>("/admin/settings"),
-  });
-
-  const registrationMutation = useMutation({
-    mutationFn: (enabled: boolean) =>
-      apiRequest("/admin/settings/registration", {
+  const statusMutation = useMutation({
+    mutationFn: async (disabled: boolean) => {
+      if (!selectedTenantId) throw new Error("tenant not found");
+      return apiRequest<{ tenant: AdminTenantDetail["tenant"] }>(`/admin/tenants/${selectedTenantId}/status`, {
         method: "PUT",
-        body: JSON.stringify({ enabled }),
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin-settings"] });
+        body: JSON.stringify({ disabled }),
+      });
+    },
+    onSuccess: async (_, disabled) => {
+      setActionError(null);
+      setActionMessage(disabled ? t("admin.tenantDisabledSuccess") : t("admin.tenantEnabledSuccess"));
+      await queryClient.invalidateQueries({ queryKey: ["admin-tenants"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-tenant", selectedTenantId] });
     },
   });
 
-  const profileMutation = useMutation({
-    mutationFn: async (values: ProfileFormValues) => {
-      if (!selectedUserId) throw new Error("No selected user");
-      return apiRequest(`/admin/users/${selectedUserId}/profile`, {
+  const passwordMutation = useMutation({
+    mutationFn: async (password: string) => {
+      if (!selectedTenantId) throw new Error("tenant not found");
+      return apiRequest(`/admin/tenants/${selectedTenantId}/password`, {
         method: "PUT",
-        body: JSON.stringify(values),
+        body: JSON.stringify({ password }),
       });
     },
-    onSuccess: async () => {
-      setProfileError(null);
-      setProfileMessage(t("settings.saveSuccess"));
-      await queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-      await queryClient.invalidateQueries({ queryKey: ["admin-user-detail", selectedUserId] });
+    onSuccess: () => {
+      setActionError(null);
+      setActionMessage(t("admin.passwordUpdatedSuccess"));
+      passwordForm.reset({ password: "" });
     },
   });
 
-  const domainMutation = useMutation({
-    mutationFn: async (payload: { id?: number; values: DomainPayload }) => {
-      if (!selectedUserId) throw new Error("No selected user");
-      const base = `/admin/users/${selectedUserId}/domains`;
-      if (payload.id) {
-        return apiRequest(`${base}/${payload.id}`, {
-          method: "PUT",
-          body: JSON.stringify(payload.values),
-        });
-      }
-      return apiRequest(base, {
-        method: "POST",
-        body: JSON.stringify(payload.values),
-      });
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTenantId) throw new Error("tenant not found");
+      return apiRequest(`/admin/tenants/${selectedTenantId}`, { method: "DELETE" });
     },
     onSuccess: async () => {
-      setEditingDomain(null);
-      await queryClient.invalidateQueries({ queryKey: ["admin-user-detail", selectedUserId] });
+      const remaining = (tenantsQuery.data?.tenants ?? []).filter((item) => item.tenant.id !== selectedTenantId);
+      setSelectedTenantId(remaining[0]?.tenant.id ?? null);
+      setActionError(null);
+      setActionMessage(t("admin.tenantDeletedSuccess"));
+      await queryClient.invalidateQueries({ queryKey: ["admin-tenants"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-tenant", selectedTenantId] });
     },
   });
 
-  const endpointMutation = useMutation({
-    mutationFn: async (payload: { id?: number; values: EndpointPayload }) => {
-      if (!selectedUserId) throw new Error("No selected user");
-      const base = `/admin/users/${selectedUserId}/notification-endpoints`;
-      if (payload.id) {
-        return apiRequest(`${base}/${payload.id}`, {
-          method: "PUT",
-          body: JSON.stringify(payload.values),
-        });
-      }
-      return apiRequest(base, {
-        method: "POST",
-        body: JSON.stringify(payload.values),
-      });
-    },
-    onSuccess: async () => {
-      setEditingEndpoint(null);
-      await queryClient.invalidateQueries({ queryKey: ["admin-user-detail", selectedUserId] });
-    },
-  });
-
-  const deleteDomainMutation = useMutation({
-    mutationFn: async (id: number) => {
-      if (!selectedUserId) throw new Error("No selected user");
-      return apiRequest(`/admin/users/${selectedUserId}/domains/${id}`, { method: "DELETE" });
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin-user-detail", selectedUserId] });
-    },
-  });
-
-  const deleteEndpointMutation = useMutation({
-    mutationFn: async (id: number) => {
-      if (!selectedUserId) throw new Error("No selected user");
-      return apiRequest(`/admin/users/${selectedUserId}/notification-endpoints/${id}`, { method: "DELETE" });
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin-user-detail", selectedUserId] });
-    },
-  });
-
-  const manualCheckMutation = useMutation({
-    mutationFn: async (id: number) => {
-      if (!selectedUserId) throw new Error("No selected user");
-      return apiRequest(`/admin/users/${selectedUserId}/domains/${id}/check`, { method: "POST" });
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin-user-detail", selectedUserId] });
-    },
-  });
-
-  const policyMutation = useMutation({
-    mutationFn: async (payload: { domainId?: number; values: PolicyPayload }) => {
-      if (!selectedUserId) throw new Error("No selected user");
-      const path = payload.domainId
-        ? `/admin/users/${selectedUserId}/notification-policies/domains/${payload.domainId}`
-        : `/admin/users/${selectedUserId}/notification-policies/default`;
-      return apiRequest(path, {
-        method: "PUT",
-        body: JSON.stringify(payload.values),
-      });
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["admin-user-detail", selectedUserId] });
-    },
-  });
-
-  const users = usersQuery.data?.users ?? [];
+  const tenants = tenantsQuery.data?.tenants ?? [];
   const detail = detailQuery.data;
-  const selectedOverridePolicy = selectedPolicyDomainId && detail?.policies.overrides[String(selectedPolicyDomainId)]
-    ? detail.policies.overrides[String(selectedPolicyDomainId)]
-    : undefined;
 
-  const endpointTypeLabel = (type: ApiEndpoint["type"]) => {
-    switch (type) {
-      case "email":
-        return t("endpointType.email");
-      case "telegram":
-        return t("endpointType.telegram");
-      default:
-        return t("endpointType.webhook");
-    }
-  };
-
-  const handleProfileSubmit = profileForm.handleSubmit(async (values) => {
+  const handlePasswordSubmit = passwordForm.handleSubmit(async (values) => {
     try {
-      await profileMutation.mutateAsync(values);
+      setActionMessage(null);
+      setActionError(null);
+      await passwordMutation.mutateAsync(values.password);
     } catch (reason) {
-      setProfileMessage(null);
-      setProfileError(getApiErrorMessage(reason, t("settings.saveError")));
+      setActionMessage(null);
+      setActionError(getApiErrorMessage(reason, t("admin.passwordUpdateError")));
     }
   });
 
   return (
-    <div className="space-y-6">
+    <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
       <Card>
         <CardHeader>
-          <CardTitle>{t("admin.platformSettingsTitle")}</CardTitle>
-          <CardDescription>{t("admin.platformSettingsDescription")}</CardDescription>
+          <CardTitle>{t("admin.tenantsTitle")}</CardTitle>
+          <CardDescription>{t("admin.tenantsDescription")}</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="font-medium">{t("admin.registrationTitle")}</p>
-            <p className="text-sm text-muted-foreground">
-              {settingsQuery.data?.allow_registration
-                ? t("admin.registrationEnabledDescription")
-                : t("admin.registrationDisabledDescription")}
-            </p>
-          </div>
-          <Button onClick={() => void registrationMutation.mutateAsync(!settingsQuery.data?.allow_registration)}>
-            {settingsQuery.data?.allow_registration ? t("admin.disableRegistration") : t("admin.enableRegistration")}
-          </Button>
+        <CardContent className="space-y-3">
+          {tenants.map((item) => (
+            <button
+              key={item.tenant.id}
+              type="button"
+              className={`w-full border px-4 py-4 text-left transition ${selectedTenantId === item.tenant.id ? "border-primary bg-secondary text-foreground" : "border-border bg-background text-foreground hover:bg-secondary/70"}`}
+              onClick={() => {
+                setSelectedTenantId(item.tenant.id);
+                setActionMessage(null);
+                setActionError(null);
+              }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{item.tenant.name}</p>
+                  <p className="truncate text-sm text-muted-foreground">{item.owner.username}</p>
+                </div>
+                <Badge variant={item.tenant.disabled ? "warning" : "success"}>
+                  {item.tenant.disabled ? t("admin.disabledBadge") : t("admin.activeBadge")}
+                </Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                <div>{t("admin.domainCountLabel")}: {item.stats.domain_count}</div>
+                <div>{t("admin.errorCountLabel")}: {item.stats.error_count}</div>
+              </div>
+            </button>
+          ))}
+          {tenants.length === 0 ? <p className="text-sm text-muted-foreground">{t("admin.noTenants")}</p> : null}
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("admin.tenantsTitle")}</CardTitle>
-            <CardDescription>{t("admin.tenantsDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {users.map((item) => (
-              <button
-                key={item.user.id}
-                className={`w-full border px-3 py-3 text-left ${selectedUserId === item.user.id ? "border-primary bg-accent text-foreground" : "border-border bg-background text-foreground"}`}
-                onClick={() => setSelectedUserId(item.user.id)}
-              >
-                <p className="font-medium">{item.user.username}</p>
-                <p className="text-sm text-muted-foreground">{item.user.email || t("settings.noEmailBound")}</p>
-                <p className="text-xs text-muted-foreground">{item.tenant.name}</p>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-
-        <div className="space-y-6">
-          {detail ? (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("admin.selectedWorkspaceTitle")}</CardTitle>
-                  <CardDescription>{detail.tenant.name}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-3 text-sm">
-                    <Badge variant={detail.user.role === "super_admin" ? "warning" : "muted"}>
-                      {detail.user.role === "super_admin" ? t("role.super_admin") : t("role.tenant_owner")}
-                    </Badge>
-                  </div>
-
-                  <form className="grid gap-4 md:max-w-xl" onSubmit={(event) => void handleProfileSubmit(event)}>
-                    <div className="space-y-2">
-                      <Label htmlFor="admin-username">{t("common.username")}</Label>
-                      <Input id="admin-username" {...profileForm.register("username", { required: true })} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="admin-email">{t("common.email")}</Label>
-                      <Input id="admin-email" type="email" {...profileForm.register("email")} />
-                      <p className="text-xs text-muted-foreground">{t("settings.emailHint")}</p>
-                    </div>
-                    {profileMessage ? <p className="text-sm text-emerald-700">{profileMessage}</p> : null}
-                    {profileError ? <p className="text-sm text-destructive">{profileError}</p> : null}
-                    <Button className="w-fit" type="submit">{t("common.save")}</Button>
-                  </form>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>{editingDomain ? t("admin.editTenantDomainTitle") : t("admin.createTenantDomainTitle")}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <DomainForm
-                    domain={editingDomain ?? undefined}
-                    submitLabel={editingDomain ? t("admin.saveDomain") : t("domains.addButton")}
-                    onSubmit={async (values) => {
-                      await domainMutation.mutateAsync({ id: editingDomain?.id, values });
-                    }}
-                    onCancel={editingDomain ? () => setEditingDomain(null) : undefined}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("admin.tenantDomainsTitle")}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {detail.domains.length === 0 ? <p className="text-sm text-muted-foreground">{t("domains.noTenantDomains")}</p> : null}
-                  {detail.domains.map((domain) => (
-                    <DomainPanel
-                      key={domain.id}
-                      domain={domain}
-                      actions={(
-                        <>
-                          <Button variant="outline" size="sm" onClick={() => setEditingDomain(domain)}>{t("common.edit")}</Button>
-                          <Button variant="command" size="sm" onClick={() => void manualCheckMutation.mutateAsync(domain.id)}>{t("common.checkNow")}</Button>
-                          <Button variant="destructive" size="sm" onClick={() => void deleteDomainMutation.mutateAsync(domain.id)}>{t("common.delete")}</Button>
-                        </>
-                      )}
-                    />
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>{editingEndpoint ? t("admin.editEndpointTitle") : t("admin.createEndpointTitle")}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <EndpointForm
-                    endpoint={editingEndpoint ?? undefined}
-                    submitLabel={editingEndpoint ? t("admin.saveEndpoint") : t("admin.addEndpoint")}
-                    onSubmit={async (values) => {
-                      await endpointMutation.mutateAsync({ id: editingEndpoint?.id, values });
-                    }}
-                    onCancel={editingEndpoint ? () => setEditingEndpoint(null) : undefined}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("admin.tenantEndpointsTitle")}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {detail.endpoints.length === 0 ? <p className="text-sm text-muted-foreground">{t("notifications.noEndpoints")}</p> : null}
-                  {detail.endpoints.map((endpoint) => (
-                    <div key={endpoint.id} className="flex flex-wrap items-center justify-between gap-3 border border-border bg-background px-4 py-3">
-                      <div>
-                        <p className="font-medium">{endpoint.name}</p>
-                        <p className="text-sm text-muted-foreground">{endpointTypeLabel(endpoint.type)}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setEditingEndpoint(endpoint)}>{t("common.edit")}</Button>
-                        <Button variant="destructive" size="sm" onClick={() => void deleteEndpointMutation.mutateAsync(endpoint.id)}>{t("common.delete")}</Button>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("admin.tenantPoliciesTitle")}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <PolicyForm
-                    endpoints={detail.endpoints}
-                    policy={detail.policies.default}
-                    submitLabel={t("notifications.saveDefaultPolicy")}
-                    onSubmit={async (values) => {
-                      await policyMutation.mutateAsync({ values });
-                    }}
-                  />
-                  <div className="space-y-4 border-t border-border pt-4">
-                    <select
-                      className="form-select"
-                      value={selectedPolicyDomainId ?? ""}
-                      onChange={(event) => setSelectedPolicyDomainId(event.target.value ? Number(event.target.value) : null)}
-                    >
-                      <option value="">{t("admin.selectDomainOverride")}</option>
-                      {detail.domains.map((domain) => (
-                        <option key={domain.id} value={domain.id}>{domain.hostname}:{domain.port}</option>
-                      ))}
-                    </select>
-                    {selectedPolicyDomainId ? (
-                      <PolicyForm
-                        endpoints={detail.endpoints}
-                        policy={selectedOverridePolicy}
-                        submitLabel={t("admin.saveOverridePolicy")}
-                        onSubmit={async (values) => {
-                          await policyMutation.mutateAsync({ domainId: selectedPolicyDomainId, values });
-                        }}
-                      />
-                    ) : (
-                      <p className="text-sm text-muted-foreground">{t("admin.selectDomainForOverride")}</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
+      <div className="space-y-6">
+        {detail ? (
+          <>
             <Card>
-              <CardContent className="p-6">
-                <p className="text-sm text-muted-foreground">{t("admin.selectTenantPrompt")}</p>
+              <CardHeader>
+                <CardTitle>{detail.tenant.name}</CardTitle>
+                <CardDescription>{t("admin.tenantDetailDescription", { tenantId: detail.tenant.id })}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={detail.tenant.disabled ? "warning" : "success"}>
+                    {detail.tenant.disabled ? t("admin.disabledBadge") : t("admin.activeBadge")}
+                  </Badge>
+                  <Badge variant="muted">{detail.owner.username}</Badge>
+                  <Badge variant="muted">{detail.owner.email || t("settings.noEmailBound")}</Badge>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="border border-border bg-background px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("admin.domainCountLabel")}</p>
+                    <p className="mt-2 text-lg font-semibold">{detail.stats.domain_count}</p>
+                  </div>
+                  <div className="border border-border bg-background px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("admin.healthyCountLabel")}</p>
+                    <p className="mt-2 text-lg font-semibold">{detail.stats.healthy_count}</p>
+                  </div>
+                  <div className="border border-border bg-background px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("admin.pendingCountLabel")}</p>
+                    <p className="mt-2 text-lg font-semibold">{detail.stats.pending_count}</p>
+                  </div>
+                  <div className="border border-border bg-background px-4 py-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("admin.errorCountLabel")}</p>
+                    <p className="mt-2 text-lg font-semibold">{detail.stats.error_count}</p>
+                  </div>
+                </div>
+
+                <div className="border border-border bg-background px-4 py-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("admin.publicStatusPage")}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <a className="truncate text-sm font-medium" href={detail.stats.public_status_url} target="_blank" rel="noreferrer">
+                      {detail.stats.public_status_url}
+                    </a>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-          )}
-        </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("admin.tenantAccessTitle")}</CardTitle>
+                <CardDescription>{t("admin.tenantAccessDescription")}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant={detail.tenant.disabled ? "command" : "outline"}
+                    onClick={() => void statusMutation.mutateAsync(!detail.tenant.disabled).catch((reason) => {
+                      setActionMessage(null);
+                      setActionError(getApiErrorMessage(reason, t("admin.tenantStatusError")));
+                    })}
+                  >
+                    {detail.tenant.disabled ? t("admin.enableTenant") : t("admin.disableTenant")}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => void deleteMutation.mutateAsync().catch((reason) => {
+                      setActionMessage(null);
+                      setActionError(getApiErrorMessage(reason, t("admin.tenantDeleteError")));
+                    })}
+                  >
+                    {t("admin.deleteTenant")}
+                  </Button>
+                </div>
+                {actionMessage ? <p className="text-sm text-emerald-700">{actionMessage}</p> : null}
+                {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("admin.resetPasswordTitle")}</CardTitle>
+                <CardDescription>{t("admin.resetPasswordDescription")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form className="grid gap-4 md:max-w-md" onSubmit={(event) => void handlePasswordSubmit(event)}>
+                  <div className="space-y-2">
+                    <Label htmlFor="tenant-password">{t("common.newPassword")}</Label>
+                    <Input
+                      id="tenant-password"
+                      type="password"
+                      error={passwordForm.formState.errors.password?.message}
+                      {...passwordForm.register("password", { required: true, minLength: 8 })}
+                    />
+                  </div>
+                  <Button className="w-fit" type="submit">{t("admin.updateTenantPassword")}</Button>
+                </form>
+              </CardContent>
+            </Card>
+          </>
+        ) : (
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm text-muted-foreground">{t("admin.selectTenantPrompt")}</p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
 }
-
-
-

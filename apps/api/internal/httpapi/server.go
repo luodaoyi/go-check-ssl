@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,6 +58,7 @@ func (s *Server) Router() http.Handler {
 	}))
 
 	router.Get("/api/system/health", s.handleHealth)
+	router.Get("/api/public/tenants/{tenantID}/status", s.handlePublicTenantStatus)
 
 	router.Route("/api/auth", func(r chi.Router) {
 		r.Post("/register", s.handleRegister)
@@ -103,23 +105,11 @@ func (s *Server) Router() http.Handler {
 		r.Route("/admin", func(admin chi.Router) {
 			admin.Use(s.requireAdmin)
 
-			admin.Get("/settings", s.handleAdminSettings)
-			admin.Put("/settings/registration", s.handleAdminSetRegistration)
-			admin.Get("/users", s.handleAdminListUsers)
-			admin.Get("/users/{userID}", s.handleAdminGetUser)
-			admin.Put("/users/{userID}/profile", s.handleAdminUpdateUserProfile)
-
-			admin.Post("/users/{userID}/domains", s.handleAdminCreateDomain)
-			admin.Put("/users/{userID}/domains/{domainID}", s.handleAdminUpdateDomain)
-			admin.Delete("/users/{userID}/domains/{domainID}", s.handleAdminDeleteDomain)
-			admin.Post("/users/{userID}/domains/{domainID}/check", s.handleAdminManualCheck)
-
-			admin.Post("/users/{userID}/notification-endpoints", s.handleAdminCreateEndpoint)
-			admin.Put("/users/{userID}/notification-endpoints/{endpointID}", s.handleAdminUpdateEndpoint)
-			admin.Delete("/users/{userID}/notification-endpoints/{endpointID}", s.handleAdminDeleteEndpoint)
-
-			admin.Put("/users/{userID}/notification-policies/default", s.handleAdminUpsertDefaultPolicy)
-			admin.Put("/users/{userID}/notification-policies/domains/{domainID}", s.handleAdminUpsertDomainPolicy)
+			admin.Get("/tenants", s.handleAdminListTenants)
+			admin.Get("/tenants/{tenantID}", s.handleAdminGetTenant)
+			admin.Put("/tenants/{tenantID}/status", s.handleAdminUpdateTenantStatus)
+			admin.Put("/tenants/{tenantID}/password", s.handleAdminUpdateTenantPassword)
+			admin.Delete("/tenants/{tenantID}", s.handleAdminDeleteTenant)
 		})
 	})
 
@@ -150,6 +140,19 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "invalid access token")
 			return
+		}
+		if claims.Role != models.RoleSuperAdmin {
+			var tenant models.Tenant
+			if err := s.db.WithContext(r.Context()).
+				Select("id", "disabled").
+				First(&tenant, claims.TenantID).Error; err != nil {
+				writeError(w, http.StatusUnauthorized, "invalid access token")
+				return
+			}
+			if tenant.Disabled {
+				writeError(w, http.StatusForbidden, "tenant is disabled")
+				return
+			}
 		}
 
 		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), AuthUser{
@@ -183,7 +186,7 @@ func (s *Server) setRefreshCookie(w http.ResponseWriter, rawToken string, expire
 		Path:     "/api/auth",
 		Expires:  expiresAt,
 		HttpOnly: true,
-		Secure:   s.cfg.IsProduction(),
+		Secure:   s.useSecureCookies(),
 		SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -196,9 +199,22 @@ func (s *Server) clearRefreshCookie(w http.ResponseWriter) {
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   s.cfg.IsProduction(),
+		Secure:   s.useSecureCookies(),
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+func (s *Server) useSecureCookies() bool {
+	baseURL := strings.TrimSpace(s.cfg.AppBaseURL)
+	if baseURL == "" {
+		return false
+	}
+
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return strings.HasPrefix(strings.ToLower(baseURL), "https://")
+	}
+	return strings.EqualFold(parsed.Scheme, "https")
 }
 
 func (s *Server) serveFrontend() http.HandlerFunc {

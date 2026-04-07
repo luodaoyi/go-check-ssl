@@ -121,8 +121,10 @@ func (s *Service) dispatchDueDomains(ctx context.Context) error {
 
 	var domains []models.Domain
 	if err := s.db.WithContext(ctx).
-		Where("enabled = ? AND next_check_at <= ?", true, now).
-		Order("next_check_at ASC").
+		Table("domains").
+		Joins("JOIN tenants ON tenants.id = domains.tenant_id").
+		Where("domains.enabled = ? AND domains.next_check_at <= ? AND tenants.disabled = ?", true, now, false).
+		Order("domains.next_check_at ASC").
 		Limit(s.cfg.ScanConcurrency * 4).
 		Find(&domains).Error; err != nil {
 		return err
@@ -164,6 +166,14 @@ func (s *Service) processDomain(ctx context.Context, domainID uint) (*models.Dom
 	}
 
 	if !domain.Enabled {
+		return &domain, nil
+	}
+
+	var tenant models.Tenant
+	if err := s.db.WithContext(ctx).Select("id", "disabled").First(&tenant, domain.TenantID).Error; err != nil {
+		return nil, err
+	}
+	if tenant.Disabled {
 		return &domain, nil
 	}
 

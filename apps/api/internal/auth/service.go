@@ -29,6 +29,7 @@ var (
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrRegistrationDisabled = errors.New("registration disabled")
 	ErrEmailNotVerified     = errors.New("email not verified")
+	ErrTenantDisabled       = errors.New("tenant is disabled")
 	ErrInvalidToken         = errors.New("invalid token")
 	ErrTokenExpired         = errors.New("token expired")
 	ErrConflict             = errors.New("resource already exists")
@@ -191,6 +192,9 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*models.User, *S
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		return nil, nil, ErrInvalidCredentials
 	}
+	if err := s.ensureTenantActive(ctx, user.TenantID, user.Role); err != nil {
+		return nil, nil, err
+	}
 
 	tokens, err := s.createSession(ctx, &user, input.UserAgent, input.IPAddress)
 	if err != nil {
@@ -224,6 +228,9 @@ func (s *Service) Refresh(ctx context.Context, rawRefreshToken, userAgent, ipAdd
 
 	var user models.User
 	if err := s.db.WithContext(ctx).First(&user, session.UserID).Error; err != nil {
+		return nil, nil, err
+	}
+	if err := s.ensureTenantActive(ctx, user.TenantID, user.Role); err != nil {
 		return nil, nil, err
 	}
 
@@ -415,6 +422,27 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input UpdatePr
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (s *Service) SetUserPassword(ctx context.Context, userID uint, password string) error {
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	now := s.now()
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("password_hash", string(passwordHash)).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.AuthSession{}).
+			Where("user_id = ? AND revoked_at IS NULL", userID).
+			Update("revoked_at", now).Error
+	})
 }
 
 func (s *Service) ParseAccessToken(token string) (*AccessClaims, error) {
@@ -622,6 +650,23 @@ func generateInternalEmail() (string, error) {
 		return "", err
 	}
 	return "user-" + strings.ToLower(raw) + "@local.invalid", nil
+}
+
+func (s *Service) ensureTenantActive(ctx context.Context, tenantID uint, role models.UserRole) error {
+	if role == models.RoleSuperAdmin {
+		return nil
+	}
+
+	var tenant models.Tenant
+	if err := s.db.WithContext(ctx).
+		Select("id", "disabled").
+		First(&tenant, tenantID).Error; err != nil {
+		return err
+	}
+	if tenant.Disabled {
+		return ErrTenantDisabled
+	}
+	return nil
 }
 
 func (s *Service) findUserForPasswordReset(ctx context.Context, account string) (*models.User, error) {

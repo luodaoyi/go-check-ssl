@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Navigate, Outlet, Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { useAuth } from "@/lib/auth";
@@ -12,9 +12,25 @@ import { NotificationsPage } from "@/pages/notifications-page";
 import { RegisterPage } from "@/pages/register-page";
 import { ResetPasswordPage } from "@/pages/reset-password-page";
 import { SettingsPage } from "@/pages/settings-page";
+import { TenantStatusPage } from "@/pages/tenant-status-page";
 import { VerifyEmailPage } from "@/pages/verify-email-page";
 
-function ProtectedLayout() {
+function RootRedirect() {
+  const { loading, user } = useAuth();
+  const { t } = useI18n();
+
+  if (loading) {
+    return <div className="page-shell py-20">{t("common.loadingSession")}</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <Navigate to={user.role === "super_admin" ? "/admin" : "/app"} replace />;
+}
+
+function ProtectedShell({ mode }: { mode: "workspace" | "admin" }) {
   const { loading, user } = useAuth();
   const { t } = useI18n();
 
@@ -24,15 +40,13 @@ function ProtectedLayout() {
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  return <AppShell />;
-}
-
-function AdminRoute() {
-  const { user } = useAuth();
-  if (user?.role !== "super_admin") {
+  if (mode === "workspace" && user.role === "super_admin") {
+    return <Navigate to="/admin" replace />;
+  }
+  if (mode === "admin" && user.role !== "super_admin") {
     return <Navigate to="/app" replace />;
   }
-  return <Outlet />;
+  return <AppShell mode={mode} />;
 }
 
 function PublicOnly({ children }: { children: ReactNode }) {
@@ -42,7 +56,7 @@ function PublicOnly({ children }: { children: ReactNode }) {
     return <div className="page-shell py-20">{t("common.loadingSession")}</div>;
   }
   if (user) {
-    return <Navigate to="/app" replace />;
+    return <Navigate to={user.role === "super_admin" ? "/admin" : "/app"} replace />;
   }
   return <>{children}</>;
 }
@@ -51,7 +65,8 @@ export function AppRouter() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Navigate to="/app" replace />} />
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="/status/:tenantId" element={<TenantStatusPage />} />
         <Route
           path="/login"
           element={
@@ -86,13 +101,13 @@ export function AppRouter() {
           }
         />
 
-        <Route path="/app" element={<ProtectedLayout />}>
+        <Route path="/app" element={<ProtectedShell mode="workspace" />}>
           <Route index element={<DashboardPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route element={<AdminRoute />}>
-            <Route path="admin" element={<AdminPage />} />
-          </Route>
+        </Route>
+        <Route path="/admin" element={<ProtectedShell mode="admin" />}>
+          <Route index element={<AdminPage />} />
         </Route>
       </Routes>
     </Router>

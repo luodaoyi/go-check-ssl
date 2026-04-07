@@ -5,7 +5,13 @@ import { MemoryRouter } from "react-router-dom";
 import { I18nProvider } from "@/lib/i18n";
 import { LoginPage } from "@/pages/login-page";
 
-const loginMock = vi.fn().mockResolvedValue(undefined);
+const loginMock = vi.fn().mockResolvedValue({
+  id: 1,
+  tenant_id: 1,
+  username: "owner",
+  role: "tenant_owner",
+  email_verified: false,
+});
 
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({

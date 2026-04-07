@@ -37,6 +37,15 @@ type APIUser struct {
 	LastLoginAt   *time.Time      `json:"last_login_at,omitempty"`
 }
 
+type APITenant struct {
+	ID        uint      `json:"id"`
+	Name      string    `json:"name"`
+	Slug      string    `json:"slug"`
+	Disabled  bool      `json:"disabled"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type APIDomain struct {
 	ID                     uint                `json:"id"`
 	Hostname               string              `json:"hostname"`
@@ -146,6 +155,17 @@ func toAPIUser(user models.User) APIUser {
 	}
 }
 
+func toAPITenant(tenant models.Tenant) APITenant {
+	return APITenant{
+		ID:        tenant.ID,
+		Name:      tenant.Name,
+		Slug:      tenant.Slug,
+		Disabled:  tenant.Disabled,
+		CreatedAt: tenant.CreatedAt,
+		UpdatedAt: tenant.UpdatedAt,
+	}
+}
+
 func toAPIDomain(domain models.Domain) APIDomain {
 	dnsNames, _ := domain.CertDNSNames()
 
@@ -221,6 +241,8 @@ func authStatus(err error) (int, string) {
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		return http.StatusUnauthorized, err.Error()
 	case errors.Is(err, auth.ErrEmailNotVerified):
+		return http.StatusForbidden, err.Error()
+	case errors.Is(err, auth.ErrTenantDisabled):
 		return http.StatusForbidden, err.Error()
 	case errors.Is(err, auth.ErrInvalidToken), errors.Is(err, auth.ErrTokenExpired):
 		return http.StatusUnauthorized, err.Error()

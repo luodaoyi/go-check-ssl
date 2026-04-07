@@ -12,6 +12,15 @@ export interface ApiUser {
   last_login_at?: string;
 }
 
+export interface ApiTenant {
+  id: number;
+  name: string;
+  slug: string;
+  disabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ApiDomain {
   id: number;
   hostname: string;
@@ -80,23 +89,36 @@ export interface TenantPolicies {
   overrides: Record<string, PolicyView>;
 }
 
-export interface AdminUserListItem {
-  user: ApiUser;
-  tenant: {
-    id: number;
-    name: string;
-    slug: string;
-  };
+export interface TenantStats {
+  domain_count: number;
+  healthy_count: number;
+  pending_count: number;
+  error_count: number;
+  next_expiry_at?: string;
+  public_status_url: string;
 }
 
-export interface AdminUserDetail {
-  user: ApiUser;
-  tenant: {
-    id: number;
-    name: string;
-    slug: string;
+export interface AdminTenantListItem {
+  tenant: ApiTenant;
+  owner: ApiUser;
+  stats: TenantStats;
+}
+
+export interface AdminTenantDetail {
+  tenant: ApiTenant;
+  owner: ApiUser;
+  stats: TenantStats;
+}
+
+export interface PublicTenantStatus {
+  tenant: ApiTenant;
+  summary: {
+    overall_status: DomainStatus;
+    domain_count: number;
+    healthy_count: number;
+    pending_count: number;
+    error_count: number;
+    next_expiry_at?: string;
   };
   domains: ApiDomain[];
-  endpoints: ApiEndpoint[];
-  policies: TenantPolicies;
 }

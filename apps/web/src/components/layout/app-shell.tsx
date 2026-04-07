@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { ShieldAlert, Bell, Users, LogOut, Settings } from "lucide-react";
+import { ArrowLeftRight, Bell, LogOut, Settings, ShieldAlert, Users } from "lucide-react";
 
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import { Button } from "@/components/ui/button";
@@ -7,19 +7,22 @@ import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
-export function AppShell() {
+export function AppShell({ mode = "workspace" }: { mode?: "workspace" | "admin" }) {
   const { user, logout } = useAuth();
   const { t } = useI18n();
 
-  const baseNav = [
-    { label: t("nav.domains"), to: "/app", icon: ShieldAlert },
-    { label: t("nav.notifications"), to: "/app/notifications", icon: Bell },
-    { label: t("nav.settings"), to: "/app/settings", icon: Settings },
-  ];
+  const navItems = mode === "admin"
+    ? [
+        { label: t("nav.admin"), to: "/admin", icon: Users, end: true },
+        { label: t("nav.backToWorkspace"), to: "/app", icon: ArrowLeftRight, end: false },
+      ]
+    : [
+        { label: t("nav.domains"), to: "/app", icon: ShieldAlert, end: true },
+        { label: t("nav.notifications"), to: "/app/notifications", icon: Bell, end: false },
+        { label: t("nav.settings"), to: "/app/settings", icon: Settings, end: false },
+      ];
 
-  const navItems = user?.role === "super_admin"
-    ? [...baseNav, { label: t("nav.admin"), to: "/app/admin", icon: Users }]
-    : baseNav;
+  const shellTitle = mode === "admin" ? t("shell.adminTitle") : t("shell.title");
 
   return (
     <div className="min-h-screen bg-background">
@@ -27,10 +30,18 @@ export function AppShell() {
         <div className="page-shell flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Certwarden</p>
-            <h1 className="text-xl font-semibold tracking-[0.01em]">{t("shell.title")}</h1>
+            <h1 className="text-xl font-semibold tracking-[0.01em]">{shellTitle}</h1>
           </div>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
+            {mode === "workspace" && user?.role === "super_admin" ? (
+              <NavLink
+                className="inline-flex h-11 items-center justify-center border border-border bg-background px-4 text-sm font-semibold tracking-[0.06em] text-foreground transition hover:bg-secondary"
+                to="/admin"
+              >
+                {t("nav.admin")}
+              </NavLink>
+            ) : null}
             <div className="border border-border bg-background px-3 py-2 text-right text-sm">
               <p className="font-medium tracking-[0.01em]">{user?.username}</p>
               <p className="text-muted-foreground">{user?.email || t("settings.noEmailBound")}</p>
@@ -54,7 +65,7 @@ export function AppShell() {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === "/app"}
+                end={item.end}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-2 border border-transparent px-3 py-2.5 text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground transition hover:border-border hover:bg-secondary hover:text-foreground",

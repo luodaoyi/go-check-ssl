@@ -73,6 +73,15 @@ func runMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		{
+			ID: "202604070003_tenant_disable_flag",
+			Migrate: func(tx *gorm.DB) error {
+				return tx.AutoMigrate(&models.Tenant{})
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
 	})
 	return migration.Migrate()
 }

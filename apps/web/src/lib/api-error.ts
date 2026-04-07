@@ -21,6 +21,8 @@ type ApiErrorCode =
   | "missingAuthenticatedUser"
   | "adminAccessRequired"
   | "userNotFound"
+  | "tenantNotFound"
+  | "tenantDisabled"
   | "domainNotFound"
   | "endpointNotFound"
   | "domainAlreadyExists"
@@ -57,6 +59,8 @@ const messageToCode: Record<string, ApiErrorCode> = {
   "missing authenticated user": "missingAuthenticatedUser",
   "admin access required": "adminAccessRequired",
   "user not found": "userNotFound",
+  "tenant not found": "tenantNotFound",
+  "tenant is disabled": "tenantDisabled",
   "domain not found": "domainNotFound",
   "endpoint not found": "endpointNotFound",
   "domain already exists": "domainAlreadyExists",
@@ -89,6 +93,8 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     missingAuthenticatedUser: "当前登录状态无效，请重新登录。",
     adminAccessRequired: "需要管理员权限。",
     userNotFound: "未找到用户。",
+    tenantNotFound: "未找到租户。",
+    tenantDisabled: "该租户已被禁用。",
     domainNotFound: "未找到域名。",
     endpointNotFound: "未找到通知端点。",
     domainAlreadyExists: "该域名已存在。",
@@ -125,6 +131,8 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     missingAuthenticatedUser: "目前登入狀態無效，請重新登入。",
     adminAccessRequired: "需要管理員權限。",
     userNotFound: "找不到使用者。",
+    tenantNotFound: "找不到租戶。",
+    tenantDisabled: "此租戶已被停用。",
     domainNotFound: "找不到網域。",
     endpointNotFound: "找不到通知端點。",
     domainAlreadyExists: "此網域已存在。",
@@ -161,6 +169,8 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     missingAuthenticatedUser: "Your session is no longer valid. Please sign in again.",
     adminAccessRequired: "Admin access is required.",
     userNotFound: "The user could not be found.",
+    tenantNotFound: "The tenant could not be found.",
+    tenantDisabled: "This tenant has been disabled.",
     domainNotFound: "The domain could not be found.",
     endpointNotFound: "The notification endpoint could not be found.",
     domainAlreadyExists: "This domain already exists.",
@@ -197,6 +207,8 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     missingAuthenticatedUser: "Votre session n'est plus valide. Veuillez vous reconnecter.",
     adminAccessRequired: "Un accès administrateur est requis.",
     userNotFound: "Utilisateur introuvable.",
+    tenantNotFound: "Locataire introuvable.",
+    tenantDisabled: "Ce locataire a été désactivé.",
     domainNotFound: "Domaine introuvable.",
     endpointNotFound: "Point de notification introuvable.",
     domainAlreadyExists: "Ce domaine existe déjà.",
@@ -233,6 +245,8 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     missingAuthenticatedUser: "Сеанс больше недействителен. Войдите снова.",
     adminAccessRequired: "Требуются права администратора.",
     userNotFound: "Пользователь не найден.",
+    tenantNotFound: "Арендатор не найден.",
+    tenantDisabled: "Этот арендатор отключён.",
     domainNotFound: "Домен не найден.",
     endpointNotFound: "Точка уведомлений не найдена.",
     domainAlreadyExists: "Этот домен уже существует.",
@@ -269,6 +283,8 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     missingAuthenticatedUser: "セッションが無効です。もう一度ログインしてください。",
     adminAccessRequired: "管理者権限が必要です。",
     userNotFound: "ユーザーが見つかりません。",
+    tenantNotFound: "テナントが見つかりません。",
+    tenantDisabled: "このテナントは無効化されています。",
     domainNotFound: "ドメインが見つかりません。",
     endpointNotFound: "通知エンドポイントが見つかりません。",
     domainAlreadyExists: "このドメインはすでに存在します。",
@@ -305,6 +321,8 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     missingAuthenticatedUser: "La sesión ya no es válida. Inicia sesión de nuevo.",
     adminAccessRequired: "Se requiere acceso de administrador.",
     userNotFound: "No se encontró el usuario.",
+    tenantNotFound: "No se encontró el tenant.",
+    tenantDisabled: "Este tenant está deshabilitado.",
     domainNotFound: "No se encontró el dominio.",
     endpointNotFound: "No se encontró el endpoint de notificación.",
     domainAlreadyExists: "Este dominio ya existe.",

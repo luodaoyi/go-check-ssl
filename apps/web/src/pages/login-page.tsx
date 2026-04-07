@@ -32,8 +32,8 @@ export function LoginPage() {
   const handleSubmit = form.handleSubmit(async (values) => {
     try {
       setError(null);
-      await login(values.username, values.password);
-      navigate("/app");
+      const user = await login(values.username, values.password);
+      navigate(user.role === "super_admin" ? "/admin" : "/app");
     } catch (reason) {
       setError(getApiErrorMessage(reason, t("auth.loginFallbackError")));
     }

@@ -7,7 +7,7 @@ import type { ApiUser } from "@/lib/types";
 interface AuthContextValue {
   user: ApiUser | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<ApiUser>;
   logout: () => Promise<void>;
   register: (input: { username: string; password: string }) => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
@@ -68,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ username, password }),
     }, false);
     applyAuthPayload(payload);
+    return payload.user;
   }, [applyAuthPayload]);
 
   const logout = useCallback(async () => {
