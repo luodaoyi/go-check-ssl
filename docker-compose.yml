@@ -2,10 +2,7 @@ name: certwarden
 
 services:
   app:
-    image: certwarden:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${CERTWARDEN_IMAGE:-ghcr.io/luodaoyi/certwarden:latest}
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_ADDR: ${APP_ADDR:-:8080}

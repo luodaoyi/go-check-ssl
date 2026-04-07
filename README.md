@@ -100,11 +100,17 @@ npm run dev
 
 ### 2. Docker Compose
 
-默认使用 SQLite：
+默认 `docker-compose.yml` 直接使用预构建镜像，不依赖本地 `build`。复制 `docker-compose.yml` 和 `.env` 后可直接启动。
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
+docker compose up -d
+```
+
+如果你要固定某个版本镜像，可以在 `.env` 里覆盖：
+
+```bash
+CERTWARDEN_IMAGE=ghcr.io/luodaoyi/certwarden:latest
 ```
 
 默认对外端口：
@@ -133,6 +139,7 @@ make build
 
 | 变量 | 说明 | 默认值 |
 | --- | --- | --- |
+| `CERTWARDEN_IMAGE` | Docker Compose 使用的镜像地址 | `ghcr.io/luodaoyi/certwarden:latest` |
 | `APP_ADDR` | HTTP 监听地址 | `:8080` |
 | `APP_BASE_URL` | 对外访问地址 | `http://localhost:8080` |
 | `DB_DRIVER` | 数据库驱动 | `sqlite` |
