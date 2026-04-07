@@ -16,7 +16,9 @@ RUN go build -o /out/go-check-ssl ./cmd/server
 
 FROM alpine:3.21
 RUN adduser -D -u 10001 app && \
-    apk add --no-cache ca-certificates tzdata
+    apk add --no-cache ca-certificates tzdata && \
+    mkdir -p /app /data && \
+    chown -R app:app /app /data
 WORKDIR /app
 COPY --from=api-builder /out/go-check-ssl /app/go-check-ssl
 COPY --from=web-builder /src/apps/web/dist /app/web
