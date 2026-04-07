@@ -70,9 +70,10 @@ export function PolicyForm({
         <p className="text-sm font-medium">{t("notifications.channels")}</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {endpoints.map((endpoint) => (
-            <label key={endpoint.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
+            <label key={endpoint.id} className="flex items-center gap-2 border border-border bg-background px-3 py-2 text-sm">
               <input
                 type="checkbox"
+                className="h-4 w-4 border border-border accent-primary"
                 checked={selectedEndpointIds.includes(endpoint.id)}
                 onChange={(event) => {
                   const current = form.getValues("endpoint_ids");

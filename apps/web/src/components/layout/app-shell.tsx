@@ -23,18 +23,18 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b border-border bg-card">
-        <div className="page-shell flex items-center justify-between py-4">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">Certwarden</p>
-            <h1 className="text-xl font-semibold">{t("shell.title")}</h1>
+      <header className="border-b border-border bg-card/95 backdrop-blur">
+        <div className="page-shell flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Certwarden</p>
+            <h1 className="text-xl font-semibold tracking-[0.01em]">{t("shell.title")}</h1>
           </div>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            <div className="text-right text-sm">
-              <p className="font-medium">{user?.username}</p>
+            <div className="border border-border bg-background px-3 py-2 text-right text-sm">
+              <p className="font-medium tracking-[0.01em]">{user?.username}</p>
               <p className="text-muted-foreground">{user?.email || t("settings.noEmailBound")}</p>
-              <p className="text-muted-foreground">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 {user?.role ? t(user.role === "super_admin" ? "role.super_admin" : "role.tenant_owner") : null}
               </p>
             </div>
@@ -47,7 +47,7 @@ export function AppShell() {
       </header>
 
       <div className="page-shell grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="space-y-1 rounded-xl border border-border bg-card p-3">
+        <aside className="space-y-1 border border-border bg-card p-3">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -57,8 +57,8 @@ export function AppShell() {
                 end={item.to === "/app"}
                 className={({ isActive }) =>
                   cn(
-                    "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent hover:text-foreground",
-                    isActive && "bg-accent text-foreground"
+                    "flex items-center gap-2 border border-transparent px-3 py-2.5 text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground transition hover:border-border hover:bg-secondary hover:text-foreground",
+                    isActive && "border-border bg-secondary text-foreground"
                   )
                 }
               >

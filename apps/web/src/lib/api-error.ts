@@ -25,6 +25,7 @@ type ApiErrorCode =
   | "endpointNotFound"
   | "domainAlreadyExists"
   | "hostnameRequired"
+  | "targetIpInvalid"
   | "portOutOfRange"
   | "nameRequired"
   | "invalidEndpointConfig"
@@ -60,6 +61,7 @@ const messageToCode: Record<string, ApiErrorCode> = {
   "endpoint not found": "endpointNotFound",
   "domain already exists": "domainAlreadyExists",
   "hostname is required": "hostnameRequired",
+  "target ip must be a valid ipv4 or ipv6 address": "targetIpInvalid",
   "port must be between 1 and 65535": "portOutOfRange",
   "name is required": "nameRequired",
   "invalid endpoint config": "invalidEndpointConfig",
@@ -91,6 +93,7 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     endpointNotFound: "未找到通知端点。",
     domainAlreadyExists: "该域名已存在。",
     hostnameRequired: "主机名不能为空。",
+    targetIpInvalid: "指定 IP 必须是有效的 IPv4 或 IPv6 地址。",
     portOutOfRange: "端口必须在 1 到 65535 之间。",
     nameRequired: "名称不能为空。",
     invalidEndpointConfig: "通知端点配置无效。",
@@ -126,6 +129,7 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     endpointNotFound: "找不到通知端點。",
     domainAlreadyExists: "此網域已存在。",
     hostnameRequired: "主機名稱不能為空。",
+    targetIpInvalid: "指定 IP 必須是有效的 IPv4 或 IPv6 位址。",
     portOutOfRange: "埠號必須介於 1 到 65535 之間。",
     nameRequired: "名稱不能為空。",
     invalidEndpointConfig: "通知端點設定無效。",
@@ -161,6 +165,7 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     endpointNotFound: "The notification endpoint could not be found.",
     domainAlreadyExists: "This domain already exists.",
     hostnameRequired: "Hostname is required.",
+    targetIpInvalid: "Pinned IP must be a valid IPv4 or IPv6 address.",
     portOutOfRange: "Port must be between 1 and 65535.",
     nameRequired: "Name is required.",
     invalidEndpointConfig: "The notification endpoint configuration is invalid.",
@@ -196,6 +201,7 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     endpointNotFound: "Point de notification introuvable.",
     domainAlreadyExists: "Ce domaine existe déjà.",
     hostnameRequired: "Le nom d'hôte est requis.",
+    targetIpInvalid: "L’IP cible doit être une adresse IPv4 ou IPv6 valide.",
     portOutOfRange: "Le port doit être compris entre 1 et 65535.",
     nameRequired: "Le nom est requis.",
     invalidEndpointConfig: "La configuration du point de notification est invalide.",
@@ -231,6 +237,7 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     endpointNotFound: "Точка уведомлений не найдена.",
     domainAlreadyExists: "Этот домен уже существует.",
     hostnameRequired: "Имя хоста обязательно.",
+    targetIpInvalid: "Заданный IP должен быть корректным адресом IPv4 или IPv6.",
     portOutOfRange: "Порт должен быть в диапазоне от 1 до 65535.",
     nameRequired: "Имя обязательно.",
     invalidEndpointConfig: "Конфигурация точки уведомлений недействительна.",
@@ -266,6 +273,7 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     endpointNotFound: "通知エンドポイントが見つかりません。",
     domainAlreadyExists: "このドメインはすでに存在します。",
     hostnameRequired: "ホスト名は必須です。",
+    targetIpInvalid: "指定 IP は有効な IPv4 または IPv6 アドレスである必要があります。",
     portOutOfRange: "ポートは 1 から 65535 の範囲で指定してください。",
     nameRequired: "名前は必須です。",
     invalidEndpointConfig: "通知エンドポイントの設定が不正です。",
@@ -301,6 +309,7 @@ const localizedMessages: Record<Locale, Record<ApiErrorCode, string>> = {
     endpointNotFound: "No se encontró el endpoint de notificación.",
     domainAlreadyExists: "Este dominio ya existe.",
     hostnameRequired: "El hostname es obligatorio.",
+    targetIpInvalid: "La IP fijada debe ser una dirección IPv4 o IPv6 válida.",
     portOutOfRange: "El puerto debe estar entre 1 y 65535.",
     nameRequired: "El nombre es obligatorio.",
     invalidEndpointConfig: "La configuración del endpoint de notificación no es válida.",

@@ -131,7 +131,7 @@ export function EndpointForm({
         <Label htmlFor="endpoint-type">{t("common.type")}</Label>
         <select
           id="endpoint-type"
-          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+          className="form-select"
           {...form.register("type")}
         >
           <option value="email">{t("endpointType.email")}</option>
@@ -175,7 +175,7 @@ export function EndpointForm({
       ) : null}
 
       <label className="flex items-center gap-2 text-sm md:col-span-2">
-        <input type="checkbox" className="h-4 w-4 rounded border-border" {...form.register("enabled")} />
+        <input type="checkbox" className="h-4 w-4 border border-border accent-primary" {...form.register("enabled")} />
         {t("common.enabled")}
       </label>
 

@@ -103,7 +103,7 @@ export function NotificationsPage() {
         <CardContent className="space-y-3">
           {endpoints.length === 0 ? <p className="text-sm text-muted-foreground">{t("notifications.noEndpoints")}</p> : null}
           {endpoints.map((endpoint) => (
-            <div key={endpoint.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
+            <div key={endpoint.id} className="flex flex-wrap items-center justify-between gap-3 border border-border bg-background px-4 py-3">
               <div>
                 <p className="font-medium">{endpoint.name}</p>
                 <p className="text-sm text-muted-foreground">
@@ -143,7 +143,7 @@ export function NotificationsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <select
-            className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+            className="form-select"
             value={selectedDomainId ?? ""}
             onChange={(event) => setSelectedDomainId(event.target.value ? Number(event.target.value) : null)}
           >

@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { DomainForm, type DomainPayload } from "@/components/domains/domain-form";
+import { DomainPanel } from "@/components/domains/domain-panel";
 import { EndpointForm, type EndpointPayload } from "@/components/notifications/endpoint-form";
 import { PolicyForm, type PolicyPayload } from "@/components/notifications/policy-form";
 import { Badge } from "@/components/ui/badge";
@@ -190,17 +191,6 @@ export function AdminPage() {
     ? detail.policies.overrides[String(selectedPolicyDomainId)]
     : undefined;
 
-  const statusLabel = (status: ApiDomain["status"]) => {
-    switch (status) {
-      case "healthy":
-        return t("status.healthy");
-      case "error":
-        return t("status.error");
-      default:
-        return t("status.pending");
-    }
-  };
-
   const endpointTypeLabel = (type: ApiEndpoint["type"]) => {
     switch (type) {
       case "email":
@@ -253,7 +243,7 @@ export function AdminPage() {
             {users.map((item) => (
               <button
                 key={item.user.id}
-                className={`w-full rounded-lg border px-3 py-3 text-left ${selectedUserId === item.user.id ? "border-primary bg-accent" : "border-border"}`}
+                className={`w-full border px-3 py-3 text-left ${selectedUserId === item.user.id ? "border-primary bg-accent text-foreground" : "border-border bg-background text-foreground"}`}
                 onClick={() => setSelectedUserId(item.user.id)}
               >
                 <p className="font-medium">{item.user.username}</p>
@@ -319,22 +309,17 @@ export function AdminPage() {
                 <CardContent className="space-y-3">
                   {detail.domains.length === 0 ? <p className="text-sm text-muted-foreground">{t("domains.noTenantDomains")}</p> : null}
                   {detail.domains.map((domain) => (
-                    <div key={domain.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
-                      <div>
-                        <p className="font-medium">{domain.hostname}:{domain.port}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {t("admin.tenantDomainMeta", {
-                            status: statusLabel(domain.status),
-                            days: domain.days_remaining ?? t("common.none"),
-                          })}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setEditingDomain(domain)}>{t("common.edit")}</Button>
-                        <Button variant="secondary" size="sm" onClick={() => void manualCheckMutation.mutateAsync(domain.id)}>{t("common.checkNow")}</Button>
-                        <Button variant="destructive" size="sm" onClick={() => void deleteDomainMutation.mutateAsync(domain.id)}>{t("common.delete")}</Button>
-                      </div>
-                    </div>
+                    <DomainPanel
+                      key={domain.id}
+                      domain={domain}
+                      actions={(
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => setEditingDomain(domain)}>{t("common.edit")}</Button>
+                          <Button variant="command" size="sm" onClick={() => void manualCheckMutation.mutateAsync(domain.id)}>{t("common.checkNow")}</Button>
+                          <Button variant="destructive" size="sm" onClick={() => void deleteDomainMutation.mutateAsync(domain.id)}>{t("common.delete")}</Button>
+                        </>
+                      )}
+                    />
                   ))}
                 </CardContent>
               </Card>
@@ -362,7 +347,7 @@ export function AdminPage() {
                 <CardContent className="space-y-3">
                   {detail.endpoints.length === 0 ? <p className="text-sm text-muted-foreground">{t("notifications.noEndpoints")}</p> : null}
                   {detail.endpoints.map((endpoint) => (
-                    <div key={endpoint.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-4 py-3">
+                    <div key={endpoint.id} className="flex flex-wrap items-center justify-between gap-3 border border-border bg-background px-4 py-3">
                       <div>
                         <p className="font-medium">{endpoint.name}</p>
                         <p className="text-sm text-muted-foreground">{endpointTypeLabel(endpoint.type)}</p>
@@ -391,7 +376,7 @@ export function AdminPage() {
                   />
                   <div className="space-y-4 border-t border-border pt-4">
                     <select
-                      className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+                      className="form-select"
                       value={selectedPolicyDomainId ?? ""}
                       onChange={(event) => setSelectedPolicyDomainId(event.target.value ? Number(event.target.value) : null)}
                     >

@@ -56,6 +56,23 @@ func runMigrations(db *gorm.DB) error {
 				return nil
 			},
 		},
+		{
+			ID: "202604070002_domain_target_ip_and_cert_metadata",
+			Migrate: func(tx *gorm.DB) error {
+				if err := tx.AutoMigrate(&models.Domain{}, &models.DomainCheckResult{}); err != nil {
+					return err
+				}
+				if tx.Migrator().HasIndex(&models.Domain{}, "idx_domain_host_port_tenant") {
+					if err := tx.Migrator().DropIndex(&models.Domain{}, "idx_domain_host_port_tenant"); err != nil {
+						return err
+					}
+				}
+				return tx.Migrator().CreateIndex(&models.Domain{}, "idx_domain_host_port_tenant")
+			},
+			Rollback: func(tx *gorm.DB) error {
+				return nil
+			},
+		},
 	})
 	return migration.Migrate()
 }

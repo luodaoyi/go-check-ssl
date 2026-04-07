@@ -94,33 +94,52 @@ type PasswordResetToken struct {
 }
 
 type Domain struct {
-	ID                   uint         `gorm:"primaryKey"`
-	TenantID             uint         `gorm:"not null;index;uniqueIndex:idx_domain_host_port_tenant"`
-	Hostname             string       `gorm:"size:255;not null;uniqueIndex:idx_domain_host_port_tenant"`
-	Port                 int          `gorm:"not null;default:443;uniqueIndex:idx_domain_host_port_tenant"`
-	Enabled              bool         `gorm:"not null;default:true"`
-	Status               DomainStatus `gorm:"size:32;not null;default:'pending'"`
-	LastCheckedAt        *time.Time
-	LastSuccessfulAt     *time.Time
-	CertExpiresAt        *time.Time
-	DaysRemaining        *int
-	LastError            string    `gorm:"type:text"`
-	NextCheckAt          time.Time `gorm:"not null;index"`
-	CheckIntervalSeconds int       `gorm:"not null;default:3600"`
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID                     uint         `gorm:"primaryKey"`
+	TenantID               uint         `gorm:"not null;index;uniqueIndex:idx_domain_host_port_tenant"`
+	Hostname               string       `gorm:"size:255;not null;uniqueIndex:idx_domain_host_port_tenant"`
+	Port                   int          `gorm:"not null;default:443;uniqueIndex:idx_domain_host_port_tenant"`
+	TargetIP               string       `gorm:"size:64;not null;default:'';uniqueIndex:idx_domain_host_port_tenant"`
+	Enabled                bool         `gorm:"not null;default:true"`
+	Status                 DomainStatus `gorm:"size:32;not null;default:'pending'"`
+	ResolvedIP             string       `gorm:"size:64"`
+	LastCheckedAt          *time.Time
+	LastSuccessfulAt       *time.Time
+	CertValidFrom          *time.Time
+	CertExpiresAt          *time.Time
+	DaysRemaining          *int
+	CertIssuer             string    `gorm:"type:text"`
+	CertSubject            string    `gorm:"type:text"`
+	CertCommonName         string    `gorm:"size:255"`
+	CertDNSNamesJSON       string    `gorm:"size:4096;not null;default:'[]'"`
+	CertSerialNumber       string    `gorm:"size:255"`
+	CertFingerprintSHA256  string    `gorm:"size:128"`
+	CertSignatureAlgorithm string    `gorm:"size:128"`
+	LastError              string    `gorm:"type:text"`
+	NextCheckAt            time.Time `gorm:"not null;index"`
+	CheckIntervalSeconds   int       `gorm:"not null;default:3600"`
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 type DomainCheckResult struct {
-	ID            uint         `gorm:"primaryKey"`
-	DomainID      uint         `gorm:"not null;index"`
-	TenantID      uint         `gorm:"not null;index"`
-	Status        DomainStatus `gorm:"size:32;not null;index"`
-	ErrorMessage  string       `gorm:"type:text"`
-	CertExpiresAt *time.Time
-	DaysRemaining *int
-	CheckedAt     time.Time `gorm:"not null;index"`
-	CreatedAt     time.Time
+	ID                     uint         `gorm:"primaryKey"`
+	DomainID               uint         `gorm:"not null;index"`
+	TenantID               uint         `gorm:"not null;index"`
+	Status                 DomainStatus `gorm:"size:32;not null;index"`
+	ErrorMessage           string       `gorm:"type:text"`
+	ResolvedIP             string       `gorm:"size:64"`
+	CertValidFrom          *time.Time
+	CertExpiresAt          *time.Time
+	DaysRemaining          *int
+	CertIssuer             string    `gorm:"type:text"`
+	CertSubject            string    `gorm:"type:text"`
+	CertCommonName         string    `gorm:"size:255"`
+	CertDNSNamesJSON       string    `gorm:"size:4096;not null;default:'[]'"`
+	CertSerialNumber       string    `gorm:"size:255"`
+	CertFingerprintSHA256  string    `gorm:"size:128"`
+	CertSignatureAlgorithm string    `gorm:"size:128"`
+	CheckedAt              time.Time `gorm:"not null;index"`
+	CreatedAt              time.Time
 }
 
 type NotificationEndpoint struct {
@@ -171,6 +190,32 @@ type SystemSetting struct {
 
 func (p NotificationPolicy) ThresholdDays() ([]int, error) {
 	return parseIntSlice(p.ThresholdsJSON)
+}
+
+func (d Domain) CertDNSNames() ([]string, error) {
+	return parseStringSlice(d.CertDNSNamesJSON)
+}
+
+func (d *Domain) SetCertDNSNames(values []string) error {
+	encoded, err := setStringSlice(values)
+	if err != nil {
+		return err
+	}
+	d.CertDNSNamesJSON = encoded
+	return nil
+}
+
+func (r DomainCheckResult) CertDNSNames() ([]string, error) {
+	return parseStringSlice(r.CertDNSNamesJSON)
+}
+
+func (r *DomainCheckResult) SetCertDNSNames(values []string) error {
+	encoded, err := setStringSlice(values)
+	if err != nil {
+		return err
+	}
+	r.CertDNSNamesJSON = encoded
+	return nil
 }
 
 func (p *NotificationPolicy) SetThresholdDays(values []int) error {
@@ -281,6 +326,44 @@ func parseUintSlice(raw string) ([]uint, error) {
 		return nil, err
 	}
 	return normalizeUintIDs(values), nil
+}
+
+func setStringSlice(values []string) (string, error) {
+	normalized := normalizeStrings(values)
+	encoded, err := json.Marshal(normalized)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+func parseStringSlice(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return []string{}, nil
+	}
+	values := []string{}
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
+		return nil, err
+	}
+	return normalizeStrings(values), nil
+}
+
+func normalizeStrings(values []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	sort.Strings(out)
+	return out
 }
 
 var ErrInvalidEndpointConfig = errors.New("invalid endpoint config")

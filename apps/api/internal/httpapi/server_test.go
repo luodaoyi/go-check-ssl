@@ -58,11 +58,23 @@ func TestRegisterLoginAndAdminList(t *testing.T) {
 	createDomainResp := performJSONRequest(t, router, http.MethodPost, "/api/domains", map[string]any{
 		"hostname":               "example.com",
 		"port":                   443,
+		"target_ip":              "203.0.113.10",
 		"enabled":                true,
 		"check_interval_seconds": 3600,
 	}, loginPayload.Tokens.AccessToken)
 	if createDomainResp.Code != http.StatusCreated {
 		t.Fatalf("expected create domain 201, got %d (%s)", createDomainResp.Code, createDomainResp.Body.String())
+	}
+	var createDomainPayload struct {
+		Domain struct {
+			TargetIP string `json:"target_ip"`
+		} `json:"domain"`
+	}
+	if err := json.Unmarshal(createDomainResp.Body.Bytes(), &createDomainPayload); err != nil {
+		t.Fatalf("decode create domain payload: %v", err)
+	}
+	if createDomainPayload.Domain.TargetIP != "203.0.113.10" {
+		t.Fatalf("expected target ip to round-trip, got %q", createDomainPayload.Domain.TargetIP)
 	}
 
 	adminLoginResp := performJSONRequest(t, router, http.MethodPost, "/api/auth/login", map[string]string{

@@ -170,18 +170,29 @@ func (s *Service) processDomain(ctx context.Context, domainID uint) (*models.Dom
 	previousStatus := domain.Status
 	previousDays := cloneIntPtr(domain.DaysRemaining)
 
-	result := s.checker.Check(ctx, domain.Hostname, domain.Port)
+	result := s.checker.Check(ctx, domain.Hostname, domain.Port, domain.TargetIP)
 	nextCheckAt := s.now().Add(resolveInterval(domain, s.cfg.ScanInterval))
 
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		checkResult := models.DomainCheckResult{
-			DomainID:      domain.ID,
-			TenantID:      domain.TenantID,
-			Status:        result.Status,
-			ErrorMessage:  result.Error,
-			CertExpiresAt: result.CertExpiresAt,
-			DaysRemaining: cloneIntPtr(result.DaysRemaining),
-			CheckedAt:     result.CheckedAt,
+			DomainID:               domain.ID,
+			TenantID:               domain.TenantID,
+			Status:                 result.Status,
+			ErrorMessage:           result.Error,
+			ResolvedIP:             result.ResolvedIP,
+			CertValidFrom:          result.CertValidFrom,
+			CertExpiresAt:          result.CertExpiresAt,
+			DaysRemaining:          cloneIntPtr(result.DaysRemaining),
+			CertIssuer:             result.CertIssuer,
+			CertSubject:            result.CertSubject,
+			CertCommonName:         result.CertCommonName,
+			CertSerialNumber:       result.CertSerialNumber,
+			CertFingerprintSHA256:  result.CertFingerprintSHA256,
+			CertSignatureAlgorithm: result.CertSignatureAlgorithm,
+			CheckedAt:              result.CheckedAt,
+		}
+		if err := checkResult.SetCertDNSNames(result.CertDNSNames); err != nil {
+			return err
 		}
 		if err := tx.Create(&checkResult).Error; err != nil {
 			return err
@@ -193,15 +204,24 @@ func (s *Service) processDomain(ctx context.Context, domainID uint) (*models.Dom
 			"next_check_at":   nextCheckAt,
 			"updated_at":      s.now(),
 		}
+		if result.ResolvedIP != "" {
+			updates["resolved_ip"] = result.ResolvedIP
+		}
 		if result.Status == models.DomainStatusHealthy {
+			updates["cert_valid_from"] = result.CertValidFrom
 			updates["cert_expires_at"] = result.CertExpiresAt
 			updates["days_remaining"] = result.DaysRemaining
+			updates["cert_issuer"] = result.CertIssuer
+			updates["cert_subject"] = result.CertSubject
+			updates["cert_common_name"] = result.CertCommonName
+			updates["cert_dns_names_json"] = checkResult.CertDNSNamesJSON
+			updates["cert_serial_number"] = result.CertSerialNumber
+			updates["cert_fingerprint_sha256"] = result.CertFingerprintSHA256
+			updates["cert_signature_algorithm"] = result.CertSignatureAlgorithm
 			updates["last_error"] = ""
 			updates["last_successful_at"] = result.CheckedAt
 		} else {
 			updates["last_error"] = result.Error
-			updates["cert_expires_at"] = nil
-			updates["days_remaining"] = nil
 		}
 		return tx.Model(&models.Domain{}).Where("id = ?", domain.ID).Updates(updates).Error
 	}); err != nil {

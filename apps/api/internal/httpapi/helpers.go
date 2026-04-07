@@ -38,20 +38,51 @@ type APIUser struct {
 }
 
 type APIDomain struct {
-	ID                   uint                `json:"id"`
-	Hostname             string              `json:"hostname"`
-	Port                 int                 `json:"port"`
-	Enabled              bool                `json:"enabled"`
-	Status               models.DomainStatus `json:"status"`
-	CertExpiresAt        *time.Time          `json:"cert_expires_at,omitempty"`
-	DaysRemaining        *int                `json:"days_remaining,omitempty"`
-	LastError            string              `json:"last_error,omitempty"`
-	LastCheckedAt        *time.Time          `json:"last_checked_at,omitempty"`
-	LastSuccessfulAt     *time.Time          `json:"last_successful_at,omitempty"`
-	NextCheckAt          time.Time           `json:"next_check_at"`
-	CheckIntervalSeconds int                 `json:"check_interval_seconds"`
-	CreatedAt            time.Time           `json:"created_at"`
-	UpdatedAt            time.Time           `json:"updated_at"`
+	ID                     uint                `json:"id"`
+	Hostname               string              `json:"hostname"`
+	Port                   int                 `json:"port"`
+	TargetIP               string              `json:"target_ip,omitempty"`
+	Enabled                bool                `json:"enabled"`
+	Status                 models.DomainStatus `json:"status"`
+	ResolvedIP             string              `json:"resolved_ip,omitempty"`
+	CertValidFrom          *time.Time          `json:"cert_valid_from,omitempty"`
+	CertExpiresAt          *time.Time          `json:"cert_expires_at,omitempty"`
+	DaysRemaining          *int                `json:"days_remaining,omitempty"`
+	CertIssuer             string              `json:"cert_issuer,omitempty"`
+	CertSubject            string              `json:"cert_subject,omitempty"`
+	CertCommonName         string              `json:"cert_common_name,omitempty"`
+	CertDNSNames           []string            `json:"cert_dns_names,omitempty"`
+	CertSerialNumber       string              `json:"cert_serial_number,omitempty"`
+	CertFingerprintSHA256  string              `json:"cert_fingerprint_sha256,omitempty"`
+	CertSignatureAlgorithm string              `json:"cert_signature_algorithm,omitempty"`
+	LastError              string              `json:"last_error,omitempty"`
+	LastCheckedAt          *time.Time          `json:"last_checked_at,omitempty"`
+	LastSuccessfulAt       *time.Time          `json:"last_successful_at,omitempty"`
+	NextCheckAt            time.Time           `json:"next_check_at"`
+	CheckIntervalSeconds   int                 `json:"check_interval_seconds"`
+	CreatedAt              time.Time           `json:"created_at"`
+	UpdatedAt              time.Time           `json:"updated_at"`
+}
+
+type APIDomainCheckResult struct {
+	ID                     uint                `json:"id"`
+	DomainID               uint                `json:"domain_id"`
+	TenantID               uint                `json:"tenant_id"`
+	Status                 models.DomainStatus `json:"status"`
+	ErrorMessage           string              `json:"error_message,omitempty"`
+	ResolvedIP             string              `json:"resolved_ip,omitempty"`
+	CertValidFrom          *time.Time          `json:"cert_valid_from,omitempty"`
+	CertExpiresAt          *time.Time          `json:"cert_expires_at,omitempty"`
+	DaysRemaining          *int                `json:"days_remaining,omitempty"`
+	CertIssuer             string              `json:"cert_issuer,omitempty"`
+	CertSubject            string              `json:"cert_subject,omitempty"`
+	CertCommonName         string              `json:"cert_common_name,omitempty"`
+	CertDNSNames           []string            `json:"cert_dns_names,omitempty"`
+	CertSerialNumber       string              `json:"cert_serial_number,omitempty"`
+	CertFingerprintSHA256  string              `json:"cert_fingerprint_sha256,omitempty"`
+	CertSignatureAlgorithm string              `json:"cert_signature_algorithm,omitempty"`
+	CheckedAt              time.Time           `json:"checked_at"`
+	CreatedAt              time.Time           `json:"created_at"`
 }
 
 type APIEndpoint struct {
@@ -116,21 +147,58 @@ func toAPIUser(user models.User) APIUser {
 }
 
 func toAPIDomain(domain models.Domain) APIDomain {
+	dnsNames, _ := domain.CertDNSNames()
+
 	return APIDomain{
-		ID:                   domain.ID,
-		Hostname:             domain.Hostname,
-		Port:                 domain.Port,
-		Enabled:              domain.Enabled,
-		Status:               domain.Status,
-		CertExpiresAt:        domain.CertExpiresAt,
-		DaysRemaining:        domain.DaysRemaining,
-		LastError:            domain.LastError,
-		LastCheckedAt:        domain.LastCheckedAt,
-		LastSuccessfulAt:     domain.LastSuccessfulAt,
-		NextCheckAt:          domain.NextCheckAt,
-		CheckIntervalSeconds: domain.CheckIntervalSeconds,
-		CreatedAt:            domain.CreatedAt,
-		UpdatedAt:            domain.UpdatedAt,
+		ID:                     domain.ID,
+		Hostname:               domain.Hostname,
+		Port:                   domain.Port,
+		TargetIP:               domain.TargetIP,
+		Enabled:                domain.Enabled,
+		Status:                 domain.Status,
+		ResolvedIP:             domain.ResolvedIP,
+		CertValidFrom:          domain.CertValidFrom,
+		CertExpiresAt:          domain.CertExpiresAt,
+		DaysRemaining:          domain.DaysRemaining,
+		CertIssuer:             domain.CertIssuer,
+		CertSubject:            domain.CertSubject,
+		CertCommonName:         domain.CertCommonName,
+		CertDNSNames:           dnsNames,
+		CertSerialNumber:       domain.CertSerialNumber,
+		CertFingerprintSHA256:  domain.CertFingerprintSHA256,
+		CertSignatureAlgorithm: domain.CertSignatureAlgorithm,
+		LastError:              domain.LastError,
+		LastCheckedAt:          domain.LastCheckedAt,
+		LastSuccessfulAt:       domain.LastSuccessfulAt,
+		NextCheckAt:            domain.NextCheckAt,
+		CheckIntervalSeconds:   domain.CheckIntervalSeconds,
+		CreatedAt:              domain.CreatedAt,
+		UpdatedAt:              domain.UpdatedAt,
+	}
+}
+
+func toAPIDomainCheckResult(result models.DomainCheckResult) APIDomainCheckResult {
+	dnsNames, _ := result.CertDNSNames()
+
+	return APIDomainCheckResult{
+		ID:                     result.ID,
+		DomainID:               result.DomainID,
+		TenantID:               result.TenantID,
+		Status:                 result.Status,
+		ErrorMessage:           result.ErrorMessage,
+		ResolvedIP:             result.ResolvedIP,
+		CertValidFrom:          result.CertValidFrom,
+		CertExpiresAt:          result.CertExpiresAt,
+		DaysRemaining:          result.DaysRemaining,
+		CertIssuer:             result.CertIssuer,
+		CertSubject:            result.CertSubject,
+		CertCommonName:         result.CertCommonName,
+		CertDNSNames:           dnsNames,
+		CertSerialNumber:       result.CertSerialNumber,
+		CertFingerprintSHA256:  result.CertFingerprintSHA256,
+		CertSignatureAlgorithm: result.CertSignatureAlgorithm,
+		CheckedAt:              result.CheckedAt,
+		CreatedAt:              result.CreatedAt,
 	}
 }
 

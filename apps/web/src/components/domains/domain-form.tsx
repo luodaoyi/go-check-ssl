@@ -19,6 +19,7 @@ function createDomainSchema(t: Translator) {
       .int(t("validation.portInvalid"))
       .min(1, t("validation.portRange"))
       .max(65535, t("validation.portRange")),
+    target_ip: z.string().trim(),
     enabled: z.boolean(),
     check_interval_seconds: z.coerce
       .number()
@@ -31,6 +32,7 @@ function defaultValues(domain?: ApiDomain) {
   return {
     hostname: domain?.hostname ?? "",
     port: domain?.port ?? 443,
+    target_ip: domain?.target_ip ?? "",
     enabled: domain?.enabled ?? true,
     check_interval_seconds: domain?.check_interval_seconds ?? 3600,
   };
@@ -85,6 +87,11 @@ export function DomainForm({
         <Input id="port" type="number" error={form.formState.errors.port?.message} {...form.register("port")} />
       </div>
       <div className="space-y-2">
+        <Label htmlFor="target_ip">{t("common.targetIp")}</Label>
+        <Input id="target_ip" placeholder={t("domains.targetIpPlaceholder")} {...form.register("target_ip")} />
+        <p className="text-xs text-muted-foreground">{t("domains.targetIpHint")}</p>
+      </div>
+      <div className="space-y-2">
         <Label htmlFor="check_interval_seconds">{t("domains.checkIntervalLabel")}</Label>
         <Input
           id="check_interval_seconds"
@@ -94,7 +101,7 @@ export function DomainForm({
         />
       </div>
       <label className="flex items-center gap-2 text-sm md:col-span-2">
-        <input type="checkbox" className="h-4 w-4 rounded border-border" {...form.register("enabled")} />
+        <input type="checkbox" className="h-4 w-4 border border-border accent-primary" {...form.register("enabled")} />
         {t("common.enabled")}
       </label>
       <div className="flex gap-3 md:col-span-2">

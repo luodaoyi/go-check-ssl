@@ -16,10 +16,20 @@ export interface ApiDomain {
   id: number;
   hostname: string;
   port: number;
+  target_ip?: string;
   enabled: boolean;
   status: DomainStatus;
+  resolved_ip?: string;
+  cert_valid_from?: string;
   cert_expires_at?: string;
   days_remaining?: number;
+  cert_issuer?: string;
+  cert_subject?: string;
+  cert_common_name?: string;
+  cert_dns_names?: string[];
+  cert_serial_number?: string;
+  cert_fingerprint_sha256?: string;
+  cert_signature_algorithm?: string;
   last_error?: string;
   last_checked_at?: string;
   last_successful_at?: string;
@@ -45,9 +55,19 @@ export interface DomainCheckResult {
   tenant_id: number;
   status: DomainStatus;
   error_message?: string;
+  resolved_ip?: string;
+  cert_valid_from?: string;
   cert_expires_at?: string;
   days_remaining?: number;
+  cert_issuer?: string;
+  cert_subject?: string;
+  cert_common_name?: string;
+  cert_dns_names?: string[];
+  cert_serial_number?: string;
+  cert_fingerprint_sha256?: string;
+  cert_signature_algorithm?: string;
   checked_at: string;
+  created_at: string;
 }
 
 export interface PolicyView {

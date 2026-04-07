@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 type domainRequest struct {
 	Hostname             string `json:"hostname"`
 	Port                 int    `json:"port"`
+	TargetIP             string `json:"target_ip"`
 	Enabled              *bool  `json:"enabled"`
 	CheckIntervalSeconds int    `json:"check_interval_seconds"`
 }
@@ -145,7 +147,11 @@ func (s *Server) handleDomainHistory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"history": history})
+	response := make([]APIDomainCheckResult, 0, len(history))
+	for _, item := range history {
+		response = append(response, toAPIDomainCheckResult(item))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"history": response})
 }
 
 func (s *Server) handleListEndpoints(w http.ResponseWriter, r *http.Request) {
@@ -244,6 +250,15 @@ func (s *Server) handleUpsertDomain(w http.ResponseWriter, r *http.Request, tena
 		writeError(w, http.StatusBadRequest, "port must be between 1 and 65535")
 		return
 	}
+	targetIP := strings.TrimSpace(input.TargetIP)
+	if targetIP != "" {
+		parsed := net.ParseIP(targetIP)
+		if parsed == nil {
+			writeError(w, http.StatusBadRequest, "target ip must be a valid IPv4 or IPv6 address")
+			return
+		}
+		targetIP = parsed.String()
+	}
 	enabled := true
 	if input.Enabled != nil {
 		enabled = *input.Enabled
@@ -270,6 +285,7 @@ func (s *Server) handleUpsertDomain(w http.ResponseWriter, r *http.Request, tena
 	domain.TenantID = tenantID
 	domain.Hostname = hostname
 	domain.Port = port
+	domain.TargetIP = targetIP
 	domain.Enabled = enabled
 	domain.CheckIntervalSeconds = interval
 	if domain.NextCheckAt.IsZero() {
@@ -294,6 +310,7 @@ func (s *Server) handleUpsertDomain(w http.ResponseWriter, r *http.Request, tena
 			Updates(map[string]any{
 				"hostname":               hostname,
 				"port":                   port,
+				"target_ip":              targetIP,
 				"enabled":                enabled,
 				"check_interval_seconds": interval,
 				"updated_at":             time.Now().UTC(),
@@ -410,7 +427,7 @@ func (s *Server) listDomains(ctx context.Context, tenantID uint) ([]APIDomain, e
 	var domains []models.Domain
 	if err := s.db.WithContext(ctx).
 		Where("tenant_id = ?", tenantID).
-		Order("hostname asc").
+		Order("hostname asc, port asc, target_ip asc").
 		Find(&domains).Error; err != nil {
 		return nil, err
 	}
