@@ -78,8 +78,9 @@ func (s *Server) handlePublicTenantStatus(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"tenant":  toAPITenant(tenant),
-		"summary": summary,
-		"domains": responseDomains,
+		"tenant":     toAPITenant(tenant),
+		"summary":    summary,
+		"domains":    responseDomains,
+		"public_url": s.publicTenantStatusURL(tenant.ID),
 	})
 }

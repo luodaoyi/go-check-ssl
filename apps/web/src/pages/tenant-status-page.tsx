@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiRequest } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { resolvePublicStatusSubtitle, resolvePublicStatusTitle } from "@/lib/public-status";
 import type { DomainStatus, PublicTenantStatus } from "@/lib/types";
 
 function statusVariant(status: DomainStatus) {
@@ -40,19 +41,20 @@ export function TenantStatusPage() {
     return t("status.pending");
   }, [payload?.summary.overall_status, t]);
 
+  const pageTitle = resolvePublicStatusTitle(payload?.tenant, t("statusPage.titleFallback"));
+  const pageSubtitle = resolvePublicStatusSubtitle(payload?.tenant, t("statusPage.subtitleFallback"));
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card">
-        <div className="page-shell flex flex-col gap-4 py-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-2">
+        <div className="page-shell flex flex-col gap-5 py-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">Certwarden</p>
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-semibold tracking-[0.01em]">
-                {payload?.tenant.name || t("statusPage.titleFallback")}
-              </h1>
+              <h1 className="text-2xl font-semibold tracking-[0.01em]">{pageTitle}</h1>
               {payload ? <Badge variant={statusVariant(payload.summary.overall_status)}>{overallStatusLabel}</Badge> : null}
             </div>
-            <p className="text-sm text-muted-foreground">{t("statusPage.subtitle", { tenantId: tenantId ?? "—" })}</p>
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{pageSubtitle}</p>
           </div>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
@@ -84,7 +86,7 @@ export function TenantStatusPage() {
               <Card>
                 <CardContent className="space-y-2">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("statusPage.pendingMonitors")}</p>
-                  <p className="text-3xl font-semibold">{payload.summary.pending_count}</p>
+                  <p className="text-3xl font-semibold">{payload.summary.pending_count + payload.summary.error_count}</p>
                 </CardContent>
               </Card>
               <Card>

@@ -39,12 +39,14 @@ const (
 )
 
 type Tenant struct {
-	ID        uint   `gorm:"primaryKey"`
-	Name      string `gorm:"size:120;not null"`
-	Slug      string `gorm:"size:160;not null;uniqueIndex"`
-	Disabled  bool   `gorm:"not null;default:false;index"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                   uint   `gorm:"primaryKey"`
+	Name                 string `gorm:"size:120;not null"`
+	Slug                 string `gorm:"size:160;not null;uniqueIndex"`
+	PublicStatusTitle    string `gorm:"size:160;not null;default:''"`
+	PublicStatusSubtitle string `gorm:"size:255;not null;default:''"`
+	Disabled             bool   `gorm:"not null;default:false;index"`
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type User struct {

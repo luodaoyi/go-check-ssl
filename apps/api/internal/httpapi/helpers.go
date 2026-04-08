@@ -38,12 +38,14 @@ type APIUser struct {
 }
 
 type APITenant struct {
-	ID        uint      `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
-	Disabled  bool      `json:"disabled"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID                   uint      `json:"id"`
+	Name                 string    `json:"name"`
+	Slug                 string    `json:"slug"`
+	PublicStatusTitle    string    `json:"public_status_title,omitempty"`
+	PublicStatusSubtitle string    `json:"public_status_subtitle,omitempty"`
+	Disabled             bool      `json:"disabled"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 type APIDomain struct {
@@ -157,12 +159,14 @@ func toAPIUser(user models.User) APIUser {
 
 func toAPITenant(tenant models.Tenant) APITenant {
 	return APITenant{
-		ID:        tenant.ID,
-		Name:      tenant.Name,
-		Slug:      tenant.Slug,
-		Disabled:  tenant.Disabled,
-		CreatedAt: tenant.CreatedAt,
-		UpdatedAt: tenant.UpdatedAt,
+		ID:                   tenant.ID,
+		Name:                 tenant.Name,
+		Slug:                 tenant.Slug,
+		PublicStatusTitle:    tenant.PublicStatusTitle,
+		PublicStatusSubtitle: tenant.PublicStatusSubtitle,
+		Disabled:             tenant.Disabled,
+		CreatedAt:            tenant.CreatedAt,
+		UpdatedAt:            tenant.UpdatedAt,
 	}
 }
 

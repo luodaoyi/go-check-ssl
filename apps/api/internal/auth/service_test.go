@@ -12,6 +12,7 @@ import (
 	"github.com/luodaoyi/Certwarden/apps/api/internal/config"
 	"github.com/luodaoyi/Certwarden/apps/api/internal/database"
 	"github.com/luodaoyi/Certwarden/apps/api/internal/mailer"
+	"github.com/luodaoyi/Certwarden/apps/api/internal/models"
 )
 
 func newTestService(t *testing.T) (*Service, *mailer.MemorySender) {
@@ -69,14 +70,27 @@ func TestRegisterUpdateProfileAndLogin(t *testing.T) {
 	}
 
 	updated, err := service.UpdateProfile(context.Background(), user.ID, UpdateProfileInput{
-		Username: "owner",
-		Email:    "owner@example.com",
+		Username:             "owner",
+		Email:                "owner@example.com",
+		PublicStatusTitle:    "Operations SSL Board",
+		PublicStatusSubtitle: "Track certificate health and expiry windows.",
 	})
 	if err != nil {
 		t.Fatalf("update profile: %v", err)
 	}
 	if updated.ContactEmail == nil || *updated.ContactEmail != "owner@example.com" {
 		t.Fatalf("expected contact email to be saved, got %+v", updated.ContactEmail)
+	}
+
+	var tenant models.Tenant
+	if err := service.db.WithContext(context.Background()).First(&tenant, user.TenantID).Error; err != nil {
+		t.Fatalf("load tenant: %v", err)
+	}
+	if tenant.PublicStatusTitle != "Operations SSL Board" {
+		t.Fatalf("expected public status title to be updated, got %q", tenant.PublicStatusTitle)
+	}
+	if tenant.PublicStatusSubtitle != "Track certificate health and expiry windows." {
+		t.Fatalf("expected public status subtitle to be updated, got %q", tenant.PublicStatusSubtitle)
 	}
 
 	loggedIn, tokens, err := service.Login(context.Background(), LoginInput{

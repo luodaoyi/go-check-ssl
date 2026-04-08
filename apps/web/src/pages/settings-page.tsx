@@ -1,17 +1,23 @@
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { apiRequest } from "@/lib/api";
 import { useApiErrorMessage } from "@/lib/api-error";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
+import { resolvePublicStatusSubtitle, resolvePublicStatusTitle } from "@/lib/public-status";
+import type { PublicTenantStatus } from "@/lib/types";
 
 interface SettingsFormValues {
   username: string;
   email: string;
+  public_status_title: string;
+  public_status_subtitle: string;
 }
 
 export function SettingsPage() {
@@ -20,10 +26,18 @@ export function SettingsPage() {
   const getApiErrorMessage = useApiErrorMessage();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const publicStatusQuery = useQuery({
+    queryKey: ["workspace-public-status-settings", user?.tenant_id],
+    enabled: Boolean(user?.tenant_id),
+    queryFn: () => apiRequest<PublicTenantStatus>(`/public/tenants/${user?.tenant_id}/status`, undefined, false),
+  });
+
   const form = useForm<SettingsFormValues>({
     defaultValues: {
       username: user?.username ?? "",
       email: user?.email ?? "",
+      public_status_title: "",
+      public_status_subtitle: "",
     },
   });
 
@@ -31,14 +45,33 @@ export function SettingsPage() {
     form.reset({
       username: user?.username ?? "",
       email: user?.email ?? "",
+      public_status_title: publicStatusQuery.data?.tenant.public_status_title ?? "",
+      public_status_subtitle: publicStatusQuery.data?.tenant.public_status_subtitle ?? "",
     });
-  }, [form, user?.email, user?.username]);
+  }, [
+    form,
+    publicStatusQuery.data?.tenant.public_status_subtitle,
+    publicStatusQuery.data?.tenant.public_status_title,
+    user?.email,
+    user?.username,
+  ]);
+
+  const watchedTitle = form.watch("public_status_title");
+  const watchedSubtitle = form.watch("public_status_subtitle");
+  const effectiveTitle = resolvePublicStatusTitle(publicStatusQuery.data?.tenant ? {
+    name: publicStatusQuery.data.tenant.name,
+    public_status_title: watchedTitle,
+  } : undefined, t("statusPage.titleFallback"));
+  const effectiveSubtitle = resolvePublicStatusSubtitle({
+    public_status_subtitle: watchedSubtitle,
+  }, t("statusPage.subtitleFallback"));
 
   const handleSubmit = form.handleSubmit(async (values) => {
     try {
       setError(null);
       setMessage(null);
       await updateProfile(values);
+      await publicStatusQuery.refetch();
       setMessage(t("settings.saveSuccess"));
     } catch (reason) {
       setError(getApiErrorMessage(reason, t("settings.saveError")));
@@ -46,32 +79,81 @@ export function SettingsPage() {
   });
 
   return (
-    <Card className="max-w-3xl">
-      <CardHeader>
-        <CardTitle>{t("settings.title")}</CardTitle>
-        <CardDescription>{t("settings.description")}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid gap-5 md:max-w-2xl md:grid-cols-2" onSubmit={(event) => void handleSubmit(event)}>
-          <div className="space-y-2">
-            <Label htmlFor="settings-username">{t("common.username")}</Label>
-            <Input id="settings-username" {...form.register("username", { required: true })} />
+    <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.title")}</CardTitle>
+          <CardDescription>{t("settings.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-5 md:max-w-3xl md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="settings-username">{t("common.username")}</Label>
+              <Input id="settings-username" {...form.register("username", { required: true })} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="settings-email">{t("common.email")}</Label>
+              <Input id="settings-email" type="email" placeholder={t("settings.optionalEmailPlaceholder")} {...form.register("email")} />
+              <p className="field-note">{t("settings.emailHint")}</p>
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="settings-email">{t("common.email")}</Label>
-            <Input id="settings-email" type="email" placeholder={t("settings.optionalEmailPlaceholder")} {...form.register("email")} />
-            <p className="field-note">{t("settings.emailHint")}</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.publicPageTitle")}</CardTitle>
+          <CardDescription>{t("settings.publicPageDescription")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="grid gap-5">
+              <div className="space-y-2">
+                <Label htmlFor="settings-public-title">{t("settings.publicPageTitleLabel")}</Label>
+                <Input id="settings-public-title" placeholder={t("settings.publicPageTitlePlaceholder")} {...form.register("public_status_title")} />
+                <p className="field-note">{t("settings.publicPageTitleHint")}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="settings-public-subtitle">{t("settings.publicPageSubtitleLabel")}</Label>
+                <Input id="settings-public-subtitle" placeholder={t("settings.publicPageSubtitlePlaceholder")} {...form.register("public_status_subtitle")} />
+                <p className="field-note">{t("settings.publicPageSubtitleHint")}</p>
+              </div>
+
+              <div className="border border-border bg-background px-4 py-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("settings.publicPageUrlLabel")}</p>
+                <a className="mt-2 block truncate text-sm font-medium text-primary" href={publicStatusQuery.data?.public_url ?? "#"} target="_blank" rel="noreferrer">
+                  {publicStatusQuery.data?.public_url ?? t("common.none")}
+                </a>
+              </div>
+            </div>
+
+            <div className="border border-border bg-background px-4 py-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t("settings.publicPagePreview")}</p>
+              <div className="mt-4 space-y-3">
+                <p className="text-lg font-semibold tracking-[0.01em] text-foreground">{effectiveTitle}</p>
+                <p className="text-sm leading-6 text-muted-foreground">{effectiveSubtitle}</p>
+                <div className="action-row">
+                  <a
+                    className="inline-flex h-11 items-center justify-center border border-border bg-background px-4 text-sm font-semibold tracking-[0.06em] text-foreground transition hover:bg-secondary"
+                    href={publicStatusQuery.data?.public_url ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {t("settings.openPublicPage")}
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
-          {message ? <p className="text-sm text-emerald-700 md:col-span-2">{message}</p> : null}
-          {error ? <p className="text-sm text-destructive md:col-span-2">{error}</p> : null}
-          <div className="action-row md:col-span-2">
+
+          {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <div className="action-row">
             <Button className="w-fit" type="submit">{t("common.save")}</Button>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </form>
   );
 }
-
-
-

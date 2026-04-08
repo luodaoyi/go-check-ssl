@@ -16,6 +16,8 @@ export interface ApiTenant {
   id: number;
   name: string;
   slug: string;
+  public_status_title?: string;
+  public_status_subtitle?: string;
   disabled: boolean;
   created_at: string;
   updated_at: string;
@@ -120,5 +122,6 @@ export interface PublicTenantStatus {
     error_count: number;
     next_expiry_at?: string;
   };
+  public_url: string;
   domains: ApiDomain[];
 }

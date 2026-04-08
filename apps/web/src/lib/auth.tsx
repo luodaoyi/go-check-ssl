@@ -13,7 +13,12 @@ interface AuthContextValue {
   verifyEmail: (token: string) => Promise<void>;
   forgotPassword: (account: string) => Promise<void>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
-  updateProfile: (input: { username: string; email: string }) => Promise<void>;
+  updateProfile: (input: {
+    username: string;
+    email: string;
+    public_status_title?: string;
+    public_status_subtitle?: string;
+  }) => Promise<void>;
   refreshSession: () => Promise<string | null>;
 }
 
@@ -111,7 +116,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, false);
   }, []);
 
-  const updateProfile = useCallback(async (input: { username: string; email: string }) => {
+  const updateProfile = useCallback(async (input: {
+    username: string;
+    email: string;
+    public_status_title?: string;
+    public_status_subtitle?: string;
+  }) => {
     const payload = await apiRequest<{ user: ApiUser }>("/auth/me", {
       method: "PUT",
       body: JSON.stringify(input),

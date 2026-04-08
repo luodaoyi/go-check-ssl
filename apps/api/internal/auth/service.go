@@ -49,8 +49,10 @@ type LoginInput struct {
 }
 
 type UpdateProfileInput struct {
-	Username string
-	Email    string
+	Username             string
+	Email                string
+	PublicStatusTitle    string
+	PublicStatusSubtitle string
 }
 
 type ResetPasswordInput struct {
@@ -375,8 +377,13 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input UpdatePr
 	if err := validateUsername(username); err != nil {
 		return nil, err
 	}
+	if err := validatePublicStatusPresentation(input.PublicStatusTitle, input.PublicStatusSubtitle); err != nil {
+		return nil, err
+	}
 
 	email, emailNormalized := optionalNormalizedEmail(input.Email)
+	publicStatusTitle := strings.TrimSpace(input.PublicStatusTitle)
+	publicStatusSubtitle := strings.TrimSpace(input.PublicStatusSubtitle)
 
 	var user models.User
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -413,6 +420,14 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint, input UpdatePr
 		}
 
 		if err := tx.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&models.Tenant{}).Where("id = ?", user.TenantID).Updates(map[string]any{
+			"public_status_title":    publicStatusTitle,
+			"public_status_subtitle": publicStatusSubtitle,
+			"updated_at":             s.now(),
+		}).Error; err != nil {
 			return err
 		}
 
@@ -588,6 +603,19 @@ func validateUsername(username string) error {
 	}
 	if !usernamePattern.MatchString(username) {
 		return fmt.Errorf("username may only contain letters, numbers, dot, underscore, and dash")
+	}
+	return nil
+}
+
+func validatePublicStatusPresentation(title, subtitle string) error {
+	title = strings.TrimSpace(title)
+	subtitle = strings.TrimSpace(subtitle)
+
+	if utf8.RuneCountInString(title) > 160 {
+		return fmt.Errorf("public status title must be at most 160 characters")
+	}
+	if utf8.RuneCountInString(subtitle) > 255 {
+		return fmt.Errorf("public status subtitle must be at most 255 characters")
 	}
 	return nil
 }

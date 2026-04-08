@@ -31,8 +31,10 @@ type resetPasswordRequest struct {
 }
 
 type updateProfileRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	Username             string `json:"username"`
+	Email                string `json:"email"`
+	PublicStatusTitle    string `json:"public_status_title"`
+	PublicStatusSubtitle string `json:"public_status_subtitle"`
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -187,8 +189,10 @@ func (s *Server) handleUpdateMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := s.auth.UpdateProfile(r.Context(), userInfo.ID, auth.UpdateProfileInput{
-		Username: input.Username,
-		Email:    input.Email,
+		Username:             input.Username,
+		Email:                input.Email,
+		PublicStatusTitle:    input.PublicStatusTitle,
+		PublicStatusSubtitle: input.PublicStatusSubtitle,
 	})
 	if err != nil {
 		status, message := authStatus(err)

@@ -85,3 +85,7 @@
 @utility compact-list-row {
   @apply border border-border bg-background px-4 py-3;
 }
+
+@utility section-heading {
+  @apply text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground;
+}

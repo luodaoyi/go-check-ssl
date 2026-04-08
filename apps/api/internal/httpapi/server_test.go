@@ -62,6 +62,16 @@ func TestSessionCookieAndPublicTenantStatus(t *testing.T) {
 		t.Fatalf("expected create domain 201, got %d (%s)", createDomainResp.Code, createDomainResp.Body.String())
 	}
 
+	updateProfileResp := performJSONRequest(t, router, http.MethodPut, "/api/auth/me", map[string]any{
+		"username":               "owner",
+		"email":                  "owner@example.com",
+		"public_status_title":    "Operations SSL Board",
+		"public_status_subtitle": "Track certificate health and expiry windows.",
+	}, loginPayload.Tokens.AccessToken)
+	if updateProfileResp.Code != http.StatusOK {
+		t.Fatalf("expected update profile 200, got %d (%s)", updateProfileResp.Code, updateProfileResp.Body.String())
+	}
+
 	publicStatusResp := performJSONRequest(t, router, http.MethodGet, fmt.Sprintf("/api/public/tenants/%d/status", loginPayload.User.TenantID), nil, "")
 	if publicStatusResp.Code != http.StatusOK {
 		t.Fatalf("expected public status 200, got %d (%s)", publicStatusResp.Code, publicStatusResp.Body.String())
@@ -69,11 +79,14 @@ func TestSessionCookieAndPublicTenantStatus(t *testing.T) {
 
 	var publicPayload struct {
 		Tenant struct {
-			ID uint `json:"id"`
+			ID                   uint   `json:"id"`
+			PublicStatusTitle    string `json:"public_status_title"`
+			PublicStatusSubtitle string `json:"public_status_subtitle"`
 		} `json:"tenant"`
 		Summary struct {
 			DomainCount int `json:"domain_count"`
 		} `json:"summary"`
+		PublicURL string `json:"public_url"`
 	}
 	if err := json.Unmarshal(publicStatusResp.Body.Bytes(), &publicPayload); err != nil {
 		t.Fatalf("decode public status payload: %v", err)
@@ -83,6 +96,15 @@ func TestSessionCookieAndPublicTenantStatus(t *testing.T) {
 	}
 	if publicPayload.Summary.DomainCount != 1 {
 		t.Fatalf("expected one public domain, got %d", publicPayload.Summary.DomainCount)
+	}
+	if publicPayload.Tenant.PublicStatusTitle != "Operations SSL Board" {
+		t.Fatalf("expected public status title to be returned, got %q", publicPayload.Tenant.PublicStatusTitle)
+	}
+	if publicPayload.Tenant.PublicStatusSubtitle != "Track certificate health and expiry windows." {
+		t.Fatalf("expected public status subtitle to be returned, got %q", publicPayload.Tenant.PublicStatusSubtitle)
+	}
+	if !strings.Contains(publicPayload.PublicURL, fmt.Sprintf("/status/%d", loginPayload.User.TenantID)) {
+		t.Fatalf("expected public status url to include tenant id, got %q", publicPayload.PublicURL)
 	}
 }
 
