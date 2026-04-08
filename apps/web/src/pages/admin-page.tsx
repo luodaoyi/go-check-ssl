@@ -16,6 +16,9 @@ import type { AdminTenantDetail, AdminTenantListItem } from "@/lib/types";
 const PAGE_SIZE = 8;
 
 type TenantModalView = "details" | "access" | "password" | null;
+type TenantStatusFilter = "all" | "active" | "disabled";
+type TenantSortKey = "name" | "username" | "status" | "domains" | "errors" | "expiry";
+type SortDirection = "asc" | "desc";
 
 interface PasswordFormValues {
   password: string;
@@ -117,6 +120,10 @@ export function AdminPage() {
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
   const [tenantQuery, setTenantQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<TenantStatusFilter>("all");
+  const [sortKey, setSortKey] = useState<TenantSortKey>("expiry");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [selectedTenantIds, setSelectedTenantIds] = useState<number[]>([]);
   const [activeModal, setActiveModal] = useState<TenantModalView>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -134,7 +141,7 @@ export function AdminPage() {
 
   const tenants = useMemo(() => tenantsQuery.data?.tenants ?? [], [tenantsQuery.data?.tenants]);
 
-  const filteredTenants = useMemo(() => {
+  const searchedTenants = useMemo(() => {
     const normalizedQuery = tenantQuery.trim().toLowerCase();
     if (!normalizedQuery) {
       return tenants;
@@ -150,6 +157,45 @@ export function AdminPage() {
     });
   }, [tenantQuery, tenants]);
 
+  const statusFilteredTenants = useMemo(() => {
+    if (statusFilter === "all") {
+      return searchedTenants;
+    }
+
+    return searchedTenants.filter((item) => (statusFilter === "disabled" ? item.tenant.disabled : !item.tenant.disabled));
+  }, [searchedTenants, statusFilter]);
+
+  const filteredTenants = useMemo(() => {
+    const items = [...statusFilteredTenants];
+
+    items.sort((left, right) => {
+      const direction = sortDirection === "asc" ? 1 : -1;
+
+      const compareStrings = (leftValue?: string | null, rightValue?: string | null) =>
+        (leftValue ?? "").localeCompare(rightValue ?? "", undefined, { sensitivity: "base" });
+
+      const compareNumbers = (leftValue?: number | null, rightValue?: number | null) => (leftValue ?? -1) - (rightValue ?? -1);
+
+      switch (sortKey) {
+        case "name":
+          return compareStrings(left.tenant.name, right.tenant.name) * direction;
+        case "username":
+          return compareStrings(left.owner.username, right.owner.username) * direction;
+        case "status":
+          return compareNumbers(left.tenant.disabled ? 1 : 0, right.tenant.disabled ? 1 : 0) * direction;
+        case "domains":
+          return compareNumbers(left.stats.domain_count, right.stats.domain_count) * direction;
+        case "errors":
+          return compareNumbers(left.stats.error_count, right.stats.error_count) * direction;
+        case "expiry":
+        default:
+          return compareStrings(left.stats.next_expiry_at, right.stats.next_expiry_at) * direction;
+      }
+    });
+
+    return items;
+  }, [sortDirection, sortKey, statusFilteredTenants]);
+
   const totalPages = Math.max(1, Math.ceil(filteredTenants.length / PAGE_SIZE));
   const currentPageSafe = Math.min(currentPage, totalPages);
 
@@ -161,12 +207,24 @@ export function AdminPage() {
   const pageNumbers = useMemo(() => getVisiblePages(currentPageSafe, totalPages), [currentPageSafe, totalPages]);
   const pageStart = filteredTenants.length === 0 ? 0 : (currentPageSafe - 1) * PAGE_SIZE + 1;
   const pageEnd = filteredTenants.length === 0 ? 0 : Math.min(currentPageSafe * PAGE_SIZE, filteredTenants.length);
+  const currentPageTenantIds = useMemo(() => pagedTenants.map((item) => item.tenant.id), [pagedTenants]);
+  const pageSelectionState = useMemo(() => {
+    const selectedOnPage = currentPageTenantIds.filter((id) => selectedTenantIds.includes(id));
+    return {
+      all: currentPageTenantIds.length > 0 && selectedOnPage.length === currentPageTenantIds.length,
+      some: selectedOnPage.length > 0 && selectedOnPage.length < currentPageTenantIds.length,
+    };
+  }, [currentPageTenantIds, selectedTenantIds]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  useEffect(() => {
+    setSelectedTenantIds((ids) => ids.filter((id) => filteredTenants.some((item) => item.tenant.id === id)));
+  }, [filteredTenants]);
 
   const detailQuery = useQuery({
     queryKey: ["admin-tenant", selectedTenantId],
@@ -184,6 +242,30 @@ export function AdminPage() {
   const resetFeedback = () => {
     setActionMessage(null);
     setActionError(null);
+  };
+
+  const handleSort = (key: TenantSortKey) => {
+    setCurrentPage(1);
+    setSortDirection((direction) => {
+      if (sortKey === key) {
+        return direction === "asc" ? "desc" : "asc";
+      }
+      return key === "expiry" ? "asc" : "asc";
+    });
+    setSortKey(key);
+  };
+
+  const toggleTenantSelection = (tenantId: number, checked: boolean) => {
+    setSelectedTenantIds((ids) => (checked ? [...new Set([...ids, tenantId])] : ids.filter((id) => id !== tenantId)));
+  };
+
+  const togglePageSelection = (checked: boolean) => {
+    setSelectedTenantIds((ids) => {
+      if (checked) {
+        return [...new Set([...ids, ...currentPageTenantIds])];
+      }
+      return ids.filter((id) => !currentPageTenantIds.includes(id));
+    });
   };
 
   const openModal = (tenantId: number, view: Exclude<TenantModalView, null>) => {
@@ -242,10 +324,71 @@ export function AdminPage() {
       setActionMessage(t("admin.tenantDeletedSuccess"));
       setActiveModal(null);
       setSelectedTenantId(null);
+      setSelectedTenantIds((ids) => ids.filter((id) => id !== selectedTenantId));
       await queryClient.invalidateQueries({ queryKey: ["admin-tenants"] });
       await queryClient.invalidateQueries({ queryKey: ["admin-tenant", selectedTenantId] });
     },
   });
+
+  const runBulkAction = async (action: "enable" | "disable" | "delete") => {
+    if (selectedTenantIds.length === 0) {
+      setActionError(t("admin.selectTenantsFirst"));
+      setActionMessage(null);
+      return;
+    }
+
+    if (action === "delete" && typeof window !== "undefined") {
+      const confirmed = window.confirm(t("admin.bulkDeleteConfirm", { count: selectedTenantIds.length }));
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    resetFeedback();
+    const targetIds = [...selectedTenantIds];
+    const failures: string[] = [];
+
+    for (const tenantId of targetIds) {
+      try {
+        if (action === "delete") {
+          await apiRequest(`/admin/tenants/${tenantId}`, { method: "DELETE" });
+          continue;
+        }
+
+        await apiRequest(`/admin/tenants/${tenantId}/status`, {
+          method: "PUT",
+          body: JSON.stringify({ disabled: action === "disable" }),
+        });
+      } catch (reason) {
+        failures.push(getApiErrorMessage(reason, t(action === "delete" ? "admin.tenantDeleteError" : "admin.tenantStatusError")));
+      }
+    }
+
+    setSelectedTenantIds([]);
+    if (activeModal && selectedTenantId && targetIds.includes(selectedTenantId) && action === "delete") {
+      setActiveModal(null);
+      setSelectedTenantId(null);
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ["admin-tenants"] });
+    if (selectedTenantId) {
+      await queryClient.invalidateQueries({ queryKey: ["admin-tenant", selectedTenantId] });
+    }
+
+    if (failures.length > 0) {
+      setActionError(failures[0]);
+      setActionMessage(t("admin.bulkPartialSuccess", { success: targetIds.length - failures.length, total: targetIds.length }));
+      return;
+    }
+
+    if (action === "enable") {
+      setActionMessage(t("admin.bulkEnableSuccess", { count: targetIds.length }));
+    } else if (action === "disable") {
+      setActionMessage(t("admin.bulkDisableSuccess", { count: targetIds.length }));
+    } else {
+      setActionMessage(t("admin.bulkDeleteSuccess", { count: targetIds.length }));
+    }
+  };
 
   const handlePasswordSubmit = passwordForm.handleSubmit(async (values) => {
     try {
@@ -260,22 +403,40 @@ export function AdminPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div className="space-y-2">
+          <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-end 2xl:justify-between">
+            <div className="space-y-2 2xl:max-w-2xl">
               <CardTitle>{t("admin.tenantsTitle")}</CardTitle>
               <CardDescription>{t("admin.tenantsDescription")}</CardDescription>
             </div>
-            <div className="w-full max-w-md space-y-2">
-              <Label htmlFor="tenant-query">{t("admin.searchLabel")}</Label>
-              <Input
-                id="tenant-query"
-                value={tenantQuery}
-                onChange={(event) => {
-                  setTenantQuery(event.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder={t("admin.searchPlaceholder")}
-              />
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_220px] 2xl:min-w-[720px]">
+              <div className="space-y-2">
+                <Label htmlFor="tenant-query">{t("admin.searchLabel")}</Label>
+                <Input
+                  id="tenant-query"
+                  value={tenantQuery}
+                  onChange={(event) => {
+                    setTenantQuery(event.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder={t("admin.searchPlaceholder")}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tenant-status-filter">{t("admin.statusFilterLabel")}</Label>
+                <select
+                  id="tenant-status-filter"
+                  className="form-select"
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value as TenantStatusFilter);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value="all">{t("admin.filterAllStatuses")}</option>
+                  <option value="active">{t("admin.filterActive")}</option>
+                  <option value="disabled">{t("admin.filterDisabled")}</option>
+                </select>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -287,18 +448,83 @@ export function AdminPage() {
           {!tenantsQuery.isLoading && tenants.length === 0 ? <p className="text-sm text-muted-foreground">{t("admin.noTenants")}</p> : null}
 
           {!tenantsQuery.isLoading && tenants.length > 0 ? (
-            <div className="overflow-hidden rounded-[22px] border border-border bg-card shadow-[0_0_0_1px_rgba(240,238,230,0.8)]">
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-left text-sm">
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 rounded-[20px] border border-border bg-[#f7f4ea] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-1">
+                  <p className="section-heading">{t("admin.bulkActionsLabel")}</p>
+                  <p className="text-sm text-muted-foreground">{t("admin.selectedCount", { count: selectedTenantIds.length })}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="outline" disabled={selectedTenantIds.length === 0} onClick={() => setSelectedTenantIds([])}>
+                    {t("admin.clearSelection")}
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={selectedTenantIds.length === 0} onClick={() => void runBulkAction("enable")}>
+                    {t("admin.enableSelected")}
+                  </Button>
+                  <Button size="sm" variant="secondary" disabled={selectedTenantIds.length === 0} onClick={() => void runBulkAction("disable")}>
+                    {t("admin.disableSelected")}
+                  </Button>
+                  <Button size="sm" variant="destructive" disabled={selectedTenantIds.length === 0} onClick={() => void runBulkAction("delete")}>
+                    {t("admin.deleteSelected")}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-[22px] border border-border bg-card shadow-[0_0_0_1px_rgba(240,238,230,0.8)]">
+                <table className="w-full table-fixed border-collapse text-left text-sm">
                   <thead className="bg-[#f3f0e6]">
                     <tr className="border-b border-border">
-                      <th className="min-w-[220px] px-4 py-3 font-medium text-muted-foreground">{t("common.name")}</th>
-                      <th className="min-w-[180px] px-4 py-3 font-medium text-muted-foreground">{t("common.username")}</th>
-                      <th className="px-4 py-3 font-medium text-muted-foreground">{t("common.status")}</th>
-                      <th className="px-4 py-3 font-medium text-muted-foreground">{t("admin.domainCountLabel")}</th>
-                      <th className="px-4 py-3 font-medium text-muted-foreground">{t("admin.errorCountLabel")}</th>
-                      <th className="min-w-[180px] px-4 py-3 font-medium text-muted-foreground">{t("statusPage.nextExpiry")}</th>
-                      <th className="min-w-[320px] px-4 py-3 text-right font-medium text-muted-foreground">{t("common.actions")}</th>
+                      <th className="w-[44px] px-3 py-3">
+                        <input
+                          type="checkbox"
+                          checked={pageSelectionState.all}
+                          ref={(element) => {
+                            if (element) {
+                              element.indeterminate = pageSelectionState.some;
+                            }
+                          }}
+                          onChange={(event) => togglePageSelection(event.target.checked)}
+                          aria-label={t("admin.selectCurrentPage")}
+                          className="size-4 rounded border-border accent-[#c96442]"
+                        />
+                      </th>
+                      <th className="w-[22%] px-4 py-3 font-medium text-muted-foreground">
+                        <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("name")}>
+                          {t("common.name")}
+                          <span className="text-xs">{sortKey === "name" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
+                        </button>
+                      </th>
+                      <th className="w-[18%] px-4 py-3 font-medium text-muted-foreground">
+                        <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("username")}>
+                          {t("common.username")}
+                          <span className="text-xs">{sortKey === "username" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
+                        </button>
+                      </th>
+                      <th className="w-[12%] px-4 py-3 font-medium text-muted-foreground">
+                        <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("status")}>
+                          {t("common.status")}
+                          <span className="text-xs">{sortKey === "status" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
+                        </button>
+                      </th>
+                      <th className="w-[8%] px-4 py-3 font-medium text-muted-foreground">
+                        <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("domains")}>
+                          {t("admin.domainCountLabel")}
+                          <span className="text-xs">{sortKey === "domains" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
+                        </button>
+                      </th>
+                      <th className="w-[8%] px-4 py-3 font-medium text-muted-foreground">
+                        <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("errors")}>
+                          {t("admin.errorCountLabel")}
+                          <span className="text-xs">{sortKey === "errors" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
+                        </button>
+                      </th>
+                      <th className="w-[14%] px-4 py-3 font-medium text-muted-foreground">
+                        <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("expiry")}>
+                          {t("statusPage.nextExpiry")}
+                          <span className="text-xs">{sortKey === "expiry" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
+                        </button>
+                      </th>
+                      <th className="w-[18%] px-4 py-3 text-right font-medium text-muted-foreground">{t("common.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -308,6 +534,16 @@ export function AdminPage() {
                         className="border-b border-border/80 transition last:border-b-0 hover:bg-secondary/35"
                         onClick={() => openModal(item.tenant.id, "details")}
                       >
+                        <td className="px-3 py-4 align-top">
+                          <input
+                            type="checkbox"
+                            checked={selectedTenantIds.includes(item.tenant.id)}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => toggleTenantSelection(item.tenant.id, event.target.checked)}
+                            aria-label={t("admin.selectTenant")}
+                            className="size-4 rounded border-border accent-[#c96442]"
+                          />
+                        </td>
                         <td className="px-4 py-4 align-top">
                           <div className="min-w-0">
                             <p className="truncate font-semibold text-foreground">{item.tenant.name}</p>
@@ -315,7 +551,7 @@ export function AdminPage() {
                           </div>
                         </td>
                         <td className="px-4 py-4 align-top">
-                          <div className="min-w-[160px]">
+                          <div className="min-w-0">
                             <p className="truncate font-medium text-foreground">{item.owner.username}</p>
                             <p className="mt-1 truncate text-xs text-muted-foreground">{item.owner.email || t("settings.noEmailBound")}</p>
                           </div>
@@ -347,43 +583,43 @@ export function AdminPage() {
                 </table>
               </div>
 
-              {filteredTenants.length === 0 ? (
-                <div className="border-t border-border px-4 py-6 text-sm text-muted-foreground">{t("admin.noTenantMatches")}</div>
-              ) : (
-                <div className="flex flex-col gap-4 border-t border-border px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    {t("admin.paginationSummary", { from: pageStart, to: pageEnd, total: filteredTenants.length })}
-                  </p>
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={currentPageSafe <= 1}
-                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                    >
-                      {t("admin.previousPage")}
-                    </Button>
-                    {pageNumbers.map((pageNumber) => (
+                {filteredTenants.length === 0 ? (
+                  <div className="border-t border-border px-4 py-6 text-sm text-muted-foreground">{t("admin.noTenantMatches")}</div>
+                ) : (
+                  <div className="flex flex-col gap-4 border-t border-border px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      {t("admin.paginationSummary", { from: pageStart, to: pageEnd, total: filteredTenants.length })}
+                    </p>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <Button
-                        key={pageNumber}
                         size="sm"
-                        variant={pageNumber === currentPageSafe ? "command" : "outline"}
-                        onClick={() => setCurrentPage(pageNumber)}
+                        variant="outline"
+                        disabled={currentPageSafe <= 1}
+                        onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                       >
-                        {pageNumber}
+                        {t("admin.previousPage")}
                       </Button>
-                    ))}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={currentPageSafe >= totalPages}
-                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                    >
-                      {t("admin.nextPage")}
-                    </Button>
+                      {pageNumbers.map((pageNumber) => (
+                        <Button
+                          key={pageNumber}
+                          size="sm"
+                          variant={pageNumber === currentPageSafe ? "command" : "outline"}
+                          onClick={() => setCurrentPage(pageNumber)}
+                        >
+                          {pageNumber}
+                        </Button>
+                      ))}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={currentPageSafe >= totalPages}
+                        onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      >
+                        {t("admin.nextPage")}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
           ) : null}
         </CardContent>

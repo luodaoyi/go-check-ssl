@@ -10,6 +10,9 @@ import { cn } from "@/lib/utils";
 export function AppShell({ mode = "workspace" }: { mode?: "workspace" | "admin" }) {
   const { user, logout } = useAuth();
   const { t } = useI18n();
+  const shellClassName = mode === "admin"
+    ? "mx-auto w-full max-w-[1560px] px-4 sm:px-6 lg:px-8"
+    : "page-shell";
 
   const navItems = mode === "admin"
     ? [
@@ -29,7 +32,7 @@ export function AppShell({ mode = "workspace" }: { mode?: "workspace" | "admin" 
   return (
     <div className="min-h-screen bg-background">
       <header className="warm-topbar sticky top-0 z-40">
-        <div className="page-shell flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className={cn(shellClassName, "flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between")}>
           <div className="space-y-1">
             <p className="brand-kicker">Certwarden</p>
             <h1 className="editorial-title text-[30px] text-foreground">{shellTitle}</h1>
@@ -61,7 +64,7 @@ export function AppShell({ mode = "workspace" }: { mode?: "workspace" | "admin" 
         </div>
       </header>
 
-      <div className="page-shell grid gap-8 py-8 lg:grid-cols-[240px_minmax(0,1fr)] lg:py-10">
+      <div className={cn(shellClassName, "grid gap-8 py-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:py-10")}>
         <aside className="h-fit rounded-[28px] border border-border bg-card p-3 shadow-[0_0_0_1px_rgba(240,238,230,0.85),0_8px_28px_rgba(20,20,19,0.05)] lg:sticky lg:top-[104px]">
           <nav className="space-y-1.5">
             {navItems.map((item) => {
