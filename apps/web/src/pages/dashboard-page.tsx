@@ -27,14 +27,18 @@ function statusVariant(status: DomainStatus) {
 function OverviewTile({
   label,
   value,
+  className,
+  valueClassName,
 }: {
   label: string;
   value: ReactNode;
+  className?: string;
+  valueClassName?: string;
 }) {
   return (
-    <div className="metric-tile min-h-[96px]">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-      <div className="mt-3 text-lg font-semibold text-foreground">{value}</div>
+    <div className={`metric-tile min-h-[96px] ${className ?? ""}`}>
+      <p className="section-heading">{label}</p>
+      <div className={`mt-3 text-lg font-semibold text-foreground ${valueClassName ?? ""}`}>{value}</div>
     </div>
   );
 }
@@ -120,16 +124,21 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-5">
             {publicStatusQuery.isLoading ? <p className="text-sm text-muted-foreground">{t("dashboard.loadingOverview")}</p> : null}
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <OverviewTile
                 label={t("dashboard.overallStatus")}
                 value={<Badge variant={statusVariant(overallStatus)}>{overallStatusLabel}</Badge>}
+              />
+              <OverviewTile
+                label={t("statusPage.nextExpiry")}
+                className="xl:col-span-2"
+                valueClassName="text-sm xl:whitespace-nowrap xl:text-base"
+                value={formatDateTime(publicStatus?.summary.next_expiry_at)}
               />
               <OverviewTile label={t("statusPage.totalMonitors")} value={publicStatus?.summary.domain_count ?? domains.length} />
               <OverviewTile label={t("statusPage.healthyMonitors")} value={publicStatus?.summary.healthy_count ?? 0} />
               <OverviewTile label={t("statusPage.pendingMonitors")} value={publicStatus?.summary.pending_count ?? 0} />
               <OverviewTile label={t("admin.errorCountLabel")} value={publicStatus?.summary.error_count ?? 0} />
-              <OverviewTile label={t("statusPage.nextExpiry")} value={<span className="text-sm">{formatDateTime(publicStatus?.summary.next_expiry_at)}</span>} />
             </div>
           </CardContent>
         </Card>

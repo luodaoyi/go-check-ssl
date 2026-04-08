@@ -122,7 +122,7 @@ export function DomainPanel({
 
   return (
     <article className={cn("overflow-hidden border border-border bg-card", className)}>
-      <div className="grid gap-4 px-4 py-3 xl:grid-cols-[minmax(260px,2.35fr)_96px_168px_168px_auto] xl:items-start">
+      <div className="grid gap-4 px-4 py-3 xl:grid-cols-[minmax(260px,2.15fr)_96px_156px_156px_minmax(232px,auto)] xl:items-start">
         <div className="min-w-0">
           <button
             type="button"
@@ -160,7 +160,7 @@ export function DomainPanel({
           value={<SummaryDateValue locale={locale} value={domain.last_checked_at} fallback={t("common.none")} />}
         />
 
-        <div className="flex items-center justify-end gap-2 whitespace-nowrap xl:justify-self-end xl:border-l xl:border-border/70 xl:pl-4">
+        <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-self-end xl:justify-end xl:border-l xl:border-border/70 xl:pl-4 [&>*]:shrink-0">
           {actions}
         </div>
       </div>
