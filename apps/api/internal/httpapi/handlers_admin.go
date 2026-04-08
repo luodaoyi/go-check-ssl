@@ -172,6 +172,13 @@ func (nt *nullableTime) parseString(value string) error {
 	return fmt.Errorf("unsupported time value %q", value)
 }
 
+func (nt nullableTime) Value() (driver.Value, error) {
+	if !nt.Valid {
+		return nil, nil
+	}
+	return nt.Time.UTC(), nil
+}
+
 func (nt nullableTime) Ptr() *time.Time {
 	if !nt.Valid {
 		return nil
