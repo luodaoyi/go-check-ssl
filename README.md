@@ -73,15 +73,34 @@ It fits teams that need:
 - **Admin console** — manage tenants, disable access, delete tenants, and reset passwords
 - **Internationalized UI** — English, 简体中文, 繁體中文, Español, Français, Deutsch, Русский, العربية, Português, 日本語, 한국어, हिन्दी, Italiano
 
-## Screenshots
+## Product Tour
 
-| Login | Tenant Workspace |
-| --- | --- |
-| ![Certwarden login](docs/screenshots/login.png) | ![Certwarden dashboard](docs/screenshots/dashboard.png) |
-
-| Public Status Page | Admin Console |
-| --- | --- |
-| ![Certwarden public status](docs/screenshots/public-status.png) | ![Certwarden admin](docs/screenshots/admin.png) |
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/login.png" alt="Certwarden login" width="100%" />
+      <br />
+      <sub><strong>Login</strong> — username-first authentication with a clean operator-focused entry point.</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/dashboard.png" alt="Certwarden workspace" width="100%" />
+      <br />
+      <sub><strong>Tenant Workspace</strong> — track domain status, expiry windows, and certificate details in one place.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/public-status.png" alt="Certwarden public status page" width="100%" />
+      <br />
+      <sub><strong>Public Status Page</strong> — publish tenant-facing certificate status with custom title and subtitle.</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/admin.png" alt="Certwarden admin console" width="100%" />
+      <br />
+      <sub><strong>Admin Console</strong> — manage tenants, access control, and password resets from a dedicated backend.</sub>
+    </td>
+  </tr>
+</table>
 
 ## Start in Minutes
 
@@ -116,6 +135,20 @@ flowchart LR
     Notify --> Email["Email"]
     Notify --> Telegram["Telegram"]
     Notify --> Webhook["Webhook"]
+```
+
+## Deployment Model
+
+```mermaid
+flowchart LR
+    Operator["Operator / 1Panel / Docker Compose"] --> Compose["docker-compose.yml"]
+    Compose --> App["Certwarden Container"]
+    App --> UI["Embedded React UI"]
+    App --> Core["Go API + Scheduler + Worker Pool"]
+    Core --> SQLite["SQLite Volume (default)"]
+    Core -. optional .-> MySQL["MySQL"]
+    Core -. optional .-> PostgreSQL["PostgreSQL"]
+    Core --> Notify["Email / Telegram / Webhook"]
 ```
 
 ## Quick Start

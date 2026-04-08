@@ -75,13 +75,32 @@ Certwarden 是一个自托管的 SSL/TLS 证书监控平台，面向多租户运
 
 ## 界面预览
 
-| 登录页 | 租户后台 |
-| --- | --- |
-| ![Certwarden login](docs/screenshots/login.png) | ![Certwarden dashboard](docs/screenshots/dashboard.png) |
-
-| 公开状态页 | 管理后台 |
-| --- | --- |
-| ![Certwarden public status](docs/screenshots/public-status.png) | ![Certwarden admin](docs/screenshots/admin.png) |
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/login.png" alt="Certwarden 登录页" width="100%" />
+      <br />
+      <sub><strong>登录页</strong> —— 用户名优先认证入口，适合团队和平台统一接入。</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/dashboard.png" alt="Certwarden 租户后台" width="100%" />
+      <br />
+      <sub><strong>租户后台</strong> —— 在一个工作台中查看域名状态、到期窗口和完整证书详情。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/public-status.png" alt="Certwarden 公开状态页" width="100%" />
+      <br />
+      <sub><strong>公开状态页</strong> —— 为租户生成独立状态页，并支持自定义标题与副标题。</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <img src="docs/screenshots/admin.png" alt="Certwarden 管理后台" width="100%" />
+      <br />
+      <sub><strong>管理后台</strong> —— 统一管理租户、访问控制和密码重置等运维操作。</sub>
+    </td>
+  </tr>
+</table>
 
 ## 快速上手路径
 
@@ -116,6 +135,20 @@ flowchart LR
     Notify --> Email["Email"]
     Notify --> Telegram["Telegram"]
     Notify --> Webhook["Webhook"]
+```
+
+## 部署模型
+
+```mermaid
+flowchart LR
+    Operator["运维人员 / 1Panel / Docker Compose"] --> Compose["docker-compose.yml"]
+    Compose --> App["Certwarden 容器"]
+    App --> UI["内置 React 前端"]
+    App --> Core["Go API + 调度器 + 协程池"]
+    Core --> SQLite["SQLite 数据卷（默认）"]
+    Core -. 可选 .-> MySQL["MySQL"]
+    Core -. 可选 .-> PostgreSQL["PostgreSQL"]
+    Core --> Notify["Email / Telegram / Webhook"]
 ```
 
 ## 快速开始
