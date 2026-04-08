@@ -182,6 +182,7 @@ func (s *Service) MaskConfig(endpoint models.NotificationEndpoint) map[string]st
 	case models.NotificationEndpointEmail:
 		config["recipient_email"] = maskEmail(config["recipient_email"])
 	case models.NotificationEndpointTelegram:
+		config["bot_token"] = maskValue(config["bot_token"])
 		config["chat_id"] = maskValue(config["chat_id"])
 	case models.NotificationEndpointWebhook:
 		if raw := config["url"]; raw != "" {
@@ -342,18 +343,16 @@ func (s *Service) send(ctx context.Context, endpoint models.NotificationEndpoint
 			Body:    message,
 		})
 	case models.NotificationEndpointTelegram:
-		if strings.TrimSpace(s.cfg.TelegramBotToken) == "" {
-			return fmt.Errorf("telegram bot token is not configured")
-		}
+		botToken := strings.TrimSpace(config["bot_token"])
 		chatID := strings.TrimSpace(config["chat_id"])
-		if chatID == "" {
+		if botToken == "" || chatID == "" {
 			return models.ErrInvalidEndpointConfig
 		}
 		payload := map[string]string{
 			"chat_id": chatID,
 			"text":    message,
 		}
-		return s.postJSON(ctx, fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", s.cfg.TelegramBotToken), payload, nil)
+		return s.postJSON(ctx, fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", botToken), payload, nil)
 	case models.NotificationEndpointWebhook:
 		targetURL := strings.TrimSpace(config["url"])
 		if targetURL == "" {

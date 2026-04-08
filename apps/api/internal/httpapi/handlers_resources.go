@@ -338,21 +338,14 @@ func (s *Server) handleUpsertEndpoint(w http.ResponseWriter, r *http.Request, te
 		writeError(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	if err := validateEndpointConfig(input.Type, input.Config); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	configRaw, err := models.SetEndpointConfig(input.Config)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
 	enabled := true
 	if input.Enabled != nil {
 		enabled = *input.Enabled
 	}
 
 	var endpoint models.NotificationEndpoint
+	var existingConfig map[string]string
+	var maskedExistingConfig map[string]string
 	if endpointID > 0 {
 		if err := s.db.WithContext(r.Context()).Where("id = ? AND tenant_id = ?", endpointID, tenantID).First(&endpoint).Error; err != nil {
 			if isNotFound(err) {
@@ -362,6 +355,19 @@ func (s *Server) handleUpsertEndpoint(w http.ResponseWriter, r *http.Request, te
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		existingConfig = models.MustEndpointConfig(endpoint.Config)
+		maskedExistingConfig = s.notify.MaskConfig(endpoint)
+	}
+
+	input.Config = mergeEndpointConfig(input.Type, input.Config, existingConfig, maskedExistingConfig)
+	if err := validateEndpointConfig(input.Type, input.Config); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	configRaw, err := models.SetEndpointConfig(input.Config)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	endpoint.TenantID = tenantID
@@ -493,7 +499,7 @@ func validateEndpointConfig(endpointType models.NotificationEndpointType, config
 			return models.ErrInvalidEndpointConfig
 		}
 	case models.NotificationEndpointTelegram:
-		if strings.TrimSpace(config["chat_id"]) == "" {
+		if strings.TrimSpace(config["bot_token"]) == "" || strings.TrimSpace(config["chat_id"]) == "" {
 			return models.ErrInvalidEndpointConfig
 		}
 	case models.NotificationEndpointWebhook:
@@ -504,4 +510,62 @@ func validateEndpointConfig(endpointType models.NotificationEndpointType, config
 		return models.ErrInvalidEndpointConfig
 	}
 	return nil
+}
+
+func mergeEndpointConfig(
+	endpointType models.NotificationEndpointType,
+	inputConfig map[string]string,
+	existingConfig map[string]string,
+	maskedExistingConfig map[string]string,
+) map[string]string {
+	merged := map[string]string{}
+	for key, value := range inputConfig {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			merged[key] = trimmed
+		}
+	}
+
+	if len(existingConfig) == 0 || len(maskedExistingConfig) == 0 {
+		return merged
+	}
+
+	keysToPreserve := []string{}
+	switch endpointType {
+	case models.NotificationEndpointEmail:
+		keysToPreserve = []string{"recipient_email"}
+	case models.NotificationEndpointTelegram:
+		keysToPreserve = []string{"bot_token", "chat_id"}
+	case models.NotificationEndpointWebhook:
+		keysToPreserve = []string{"url"}
+	}
+
+	for _, key := range keysToPreserve {
+		currentValue := strings.TrimSpace(merged[key])
+		maskedValue := strings.TrimSpace(maskedExistingConfig[key])
+		if currentValue == "" || (maskedValue != "" && currentValue == maskedValue) {
+			if existingValue := strings.TrimSpace(existingConfig[key]); existingValue != "" {
+				merged[key] = existingValue
+			}
+		}
+	}
+
+	if endpointType == models.NotificationEndpointWebhook {
+		headerName := strings.TrimSpace(merged["auth_header_name"])
+		if headerName == "" {
+			delete(merged, "auth_header_value")
+		} else {
+			currentValue := strings.TrimSpace(merged["auth_header_value"])
+			maskedValue := strings.TrimSpace(maskedExistingConfig["auth_header_value"])
+			if currentValue == "" || (maskedValue != "" && currentValue == maskedValue) {
+				if existingHeaderName := strings.TrimSpace(existingConfig["auth_header_name"]); existingHeaderName == headerName {
+					if existingValue := strings.TrimSpace(existingConfig["auth_header_value"]); existingValue != "" {
+						merged["auth_header_value"] = existingValue
+					}
+				}
+			}
+		}
+	}
+
+	return merged
 }

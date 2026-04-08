@@ -106,6 +106,13 @@ type APIEndpoint struct {
 	UpdatedAt    time.Time                       `json:"updated_at"`
 }
 
+type APIPagination struct {
+	Page       int   `json:"page"`
+	PageSize   int   `json:"page_size"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"total_pages"`
+}
+
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

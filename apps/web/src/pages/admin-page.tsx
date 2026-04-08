@@ -11,12 +11,13 @@ import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/lib/api";
 import { useApiErrorMessage } from "@/lib/api-error";
 import { useI18n } from "@/lib/i18n";
-import type { AdminTenantDetail, AdminTenantListItem } from "@/lib/types";
+import type { AdminTenantDetail, AdminTenantListResponse } from "@/lib/types";
 
-const PAGE_SIZE = 8;
+const DEFAULT_PAGE_SIZE = 10;
 
 type TenantModalView = "details" | "access" | "password" | null;
 type TenantStatusFilter = "all" | "active" | "disabled";
+type TenantQuickFilter = "all" | "has_domains" | "has_errors";
 type TenantSortKey = "name" | "username" | "status" | "domains" | "errors" | "expiry";
 type SortDirection = "asc" | "desc";
 
@@ -120,7 +121,9 @@ export function AdminPage() {
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
   const [tenantQuery, setTenantQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(DEFAULT_PAGE_SIZE);
   const [statusFilter, setStatusFilter] = useState<TenantStatusFilter>("all");
+  const [quickFilter, setQuickFilter] = useState<TenantQuickFilter>("all");
   const [sortKey, setSortKey] = useState<TenantSortKey>("expiry");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selectedTenantIds, setSelectedTenantIds] = useState<number[]>([]);
@@ -135,79 +138,33 @@ export function AdminPage() {
   });
 
   const tenantsQuery = useQuery({
-    queryKey: ["admin-tenants"],
-    queryFn: () => apiRequest<{ tenants: AdminTenantListItem[] }>("/admin/tenants"),
+    queryKey: ["admin-tenants", tenantQuery, currentPage, pageSize, statusFilter, quickFilter, sortKey, sortDirection],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        page_size: String(pageSize),
+        status: statusFilter,
+        quick_filter: quickFilter,
+        sort_by: sortKey,
+        sort_order: sortDirection,
+      });
+      const trimmedQuery = tenantQuery.trim();
+      if (trimmedQuery) {
+        params.set("q", trimmedQuery);
+      }
+      return apiRequest<AdminTenantListResponse>(`/admin/tenants?${params.toString()}`);
+    },
   });
 
   const tenants = useMemo(() => tenantsQuery.data?.tenants ?? [], [tenantsQuery.data?.tenants]);
-
-  const searchedTenants = useMemo(() => {
-    const normalizedQuery = tenantQuery.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return tenants;
-    }
-
-    return tenants.filter((item) => {
-      const haystack = [item.tenant.name, item.owner.username, item.owner.email, String(item.tenant.id)]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(normalizedQuery);
-    });
-  }, [tenantQuery, tenants]);
-
-  const statusFilteredTenants = useMemo(() => {
-    if (statusFilter === "all") {
-      return searchedTenants;
-    }
-
-    return searchedTenants.filter((item) => (statusFilter === "disabled" ? item.tenant.disabled : !item.tenant.disabled));
-  }, [searchedTenants, statusFilter]);
-
-  const filteredTenants = useMemo(() => {
-    const items = [...statusFilteredTenants];
-
-    items.sort((left, right) => {
-      const direction = sortDirection === "asc" ? 1 : -1;
-
-      const compareStrings = (leftValue?: string | null, rightValue?: string | null) =>
-        (leftValue ?? "").localeCompare(rightValue ?? "", undefined, { sensitivity: "base" });
-
-      const compareNumbers = (leftValue?: number | null, rightValue?: number | null) => (leftValue ?? -1) - (rightValue ?? -1);
-
-      switch (sortKey) {
-        case "name":
-          return compareStrings(left.tenant.name, right.tenant.name) * direction;
-        case "username":
-          return compareStrings(left.owner.username, right.owner.username) * direction;
-        case "status":
-          return compareNumbers(left.tenant.disabled ? 1 : 0, right.tenant.disabled ? 1 : 0) * direction;
-        case "domains":
-          return compareNumbers(left.stats.domain_count, right.stats.domain_count) * direction;
-        case "errors":
-          return compareNumbers(left.stats.error_count, right.stats.error_count) * direction;
-        case "expiry":
-        default:
-          return compareStrings(left.stats.next_expiry_at, right.stats.next_expiry_at) * direction;
-      }
-    });
-
-    return items;
-  }, [sortDirection, sortKey, statusFilteredTenants]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredTenants.length / PAGE_SIZE));
+  const pagination = tenantsQuery.data?.pagination;
+  const totalPages = Math.max(1, pagination?.total_pages ?? 1);
   const currentPageSafe = Math.min(currentPage, totalPages);
-
-  const pagedTenants = useMemo(() => {
-    const start = (currentPageSafe - 1) * PAGE_SIZE;
-    return filteredTenants.slice(start, start + PAGE_SIZE);
-  }, [currentPageSafe, filteredTenants]);
-
+  const totalTenants = pagination?.total ?? 0;
+  const pageStart = totalTenants === 0 ? 0 : (currentPageSafe - 1) * pageSize + 1;
+  const pageEnd = totalTenants === 0 ? 0 : Math.min(currentPageSafe * pageSize, totalTenants);
   const pageNumbers = useMemo(() => getVisiblePages(currentPageSafe, totalPages), [currentPageSafe, totalPages]);
-  const pageStart = filteredTenants.length === 0 ? 0 : (currentPageSafe - 1) * PAGE_SIZE + 1;
-  const pageEnd = filteredTenants.length === 0 ? 0 : Math.min(currentPageSafe * PAGE_SIZE, filteredTenants.length);
-  const currentPageTenantIds = useMemo(() => pagedTenants.map((item) => item.tenant.id), [pagedTenants]);
+  const currentPageTenantIds = useMemo(() => tenants.map((item) => item.tenant.id), [tenants]);
   const pageSelectionState = useMemo(() => {
     const selectedOnPage = currentPageTenantIds.filter((id) => selectedTenantIds.includes(id));
     return {
@@ -221,10 +178,6 @@ export function AdminPage() {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
-
-  useEffect(() => {
-    setSelectedTenantIds((ids) => ids.filter((id) => filteredTenants.some((item) => item.tenant.id === id)));
-  }, [filteredTenants]);
 
   const detailQuery = useQuery({
     queryKey: ["admin-tenant", selectedTenantId],
@@ -445,10 +398,28 @@ export function AdminPage() {
           {actionError ? <div className="rounded-[16px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-destructive">{actionError}</div> : null}
 
           {tenantsQuery.isLoading ? <p className="text-sm text-muted-foreground">{t("common.loadingSession")}</p> : null}
-          {!tenantsQuery.isLoading && tenants.length === 0 ? <p className="text-sm text-muted-foreground">{t("admin.noTenants")}</p> : null}
+          {!tenantsQuery.isLoading && totalTenants === 0 ? <p className="text-sm text-muted-foreground">{t("admin.noTenants")}</p> : null}
 
-          {!tenantsQuery.isLoading && tenants.length > 0 ? (
+          {!tenantsQuery.isLoading && totalTenants > 0 ? (
             <div className="space-y-4">
+              <div className="flex flex-col gap-3 rounded-[20px] border border-border bg-[#f7f4ea] px-4 py-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="space-y-1">
+                  <p className="section-heading">{t("admin.quickFiltersLabel")}</p>
+                  <p className="text-sm text-muted-foreground">{t("admin.quickFiltersDescription")}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant={quickFilter === "all" ? "command" : "outline"} onClick={() => { setQuickFilter("all"); setCurrentPage(1); }}>
+                    {t("admin.quickFilterAll")}
+                  </Button>
+                  <Button size="sm" variant={quickFilter === "has_domains" ? "command" : "outline"} onClick={() => { setQuickFilter("has_domains"); setCurrentPage(1); }}>
+                    {t("admin.quickFilterHasDomains")}
+                  </Button>
+                  <Button size="sm" variant={quickFilter === "has_errors" ? "command" : "outline"} onClick={() => { setQuickFilter("has_errors"); setCurrentPage(1); }}>
+                    {t("admin.quickFilterHasErrors")}
+                  </Button>
+                </div>
+              </div>
+
               <div className="flex flex-col gap-3 rounded-[20px] border border-border bg-[#f7f4ea] px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="space-y-1">
                   <p className="section-heading">{t("admin.bulkActionsLabel")}</p>
@@ -471,10 +442,11 @@ export function AdminPage() {
               </div>
 
               <div className="overflow-hidden rounded-[22px] border border-border bg-card shadow-[0_0_0_1px_rgba(240,238,230,0.8)]">
+                <div className="max-h-[70vh] overflow-y-auto">
                 <table className="w-full table-fixed border-collapse text-left text-sm">
                   <thead className="bg-[#f3f0e6]">
                     <tr className="border-b border-border">
-                      <th className="w-[44px] px-3 py-3">
+                      <th className="sticky top-0 z-10 w-[44px] bg-[#f3f0e6] px-3 py-3">
                         <input
                           type="checkbox"
                           checked={pageSelectionState.all}
@@ -488,47 +460,47 @@ export function AdminPage() {
                           className="size-4 rounded border-border accent-[#c96442]"
                         />
                       </th>
-                      <th className="w-[22%] px-4 py-3 font-medium text-muted-foreground">
+                      <th className="sticky top-0 z-10 w-[22%] bg-[#f3f0e6] px-4 py-3 font-medium text-muted-foreground">
                         <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("name")}>
                           {t("common.name")}
                           <span className="text-xs">{sortKey === "name" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
                         </button>
                       </th>
-                      <th className="w-[18%] px-4 py-3 font-medium text-muted-foreground">
+                      <th className="sticky top-0 z-10 w-[18%] bg-[#f3f0e6] px-4 py-3 font-medium text-muted-foreground">
                         <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("username")}>
                           {t("common.username")}
                           <span className="text-xs">{sortKey === "username" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
                         </button>
                       </th>
-                      <th className="w-[12%] px-4 py-3 font-medium text-muted-foreground">
+                      <th className="sticky top-0 z-10 w-[12%] bg-[#f3f0e6] px-4 py-3 font-medium text-muted-foreground">
                         <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("status")}>
                           {t("common.status")}
                           <span className="text-xs">{sortKey === "status" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
                         </button>
                       </th>
-                      <th className="w-[8%] px-4 py-3 font-medium text-muted-foreground">
+                      <th className="sticky top-0 z-10 w-[8%] bg-[#f3f0e6] px-4 py-3 font-medium text-muted-foreground">
                         <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("domains")}>
                           {t("admin.domainCountLabel")}
                           <span className="text-xs">{sortKey === "domains" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
                         </button>
                       </th>
-                      <th className="w-[8%] px-4 py-3 font-medium text-muted-foreground">
+                      <th className="sticky top-0 z-10 w-[8%] bg-[#f3f0e6] px-4 py-3 font-medium text-muted-foreground">
                         <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("errors")}>
                           {t("admin.errorCountLabel")}
                           <span className="text-xs">{sortKey === "errors" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
                         </button>
                       </th>
-                      <th className="w-[14%] px-4 py-3 font-medium text-muted-foreground">
+                      <th className="sticky top-0 z-10 w-[14%] bg-[#f3f0e6] px-4 py-3 font-medium text-muted-foreground">
                         <button type="button" className="inline-flex items-center gap-2" onClick={() => handleSort("expiry")}>
                           {t("statusPage.nextExpiry")}
                           <span className="text-xs">{sortKey === "expiry" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</span>
                         </button>
                       </th>
-                      <th className="w-[18%] px-4 py-3 text-right font-medium text-muted-foreground">{t("common.actions")}</th>
+                      <th className="sticky top-0 z-10 w-[18%] bg-[#f3f0e6] px-4 py-3 text-right font-medium text-muted-foreground">{t("common.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pagedTenants.map((item) => (
+                    {tenants.map((item) => (
                       <tr
                         key={item.tenant.id}
                         className="border-b border-border/80 transition last:border-b-0 hover:bg-secondary/35"
@@ -581,14 +553,15 @@ export function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
 
-                {filteredTenants.length === 0 ? (
+                {tenants.length === 0 ? (
                   <div className="border-t border-border px-4 py-6 text-sm text-muted-foreground">{t("admin.noTenantMatches")}</div>
                 ) : (
                   <div className="flex flex-col gap-4 border-t border-border px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                     <p className="text-sm text-muted-foreground">
-                      {t("admin.paginationSummary", { from: pageStart, to: pageEnd, total: filteredTenants.length })}
+                      {t("admin.paginationSummary", { from: pageStart, to: pageEnd, total: totalTenants })}
                     </p>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       <Button

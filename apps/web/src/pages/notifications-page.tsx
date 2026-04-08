@@ -105,6 +105,9 @@ export function NotificationsPage() {
   );
 
   const endpointPreview = (endpoint: ApiEndpoint) => {
+    if (endpoint.type === "telegram") {
+      return endpoint.config_masked.chat_id ?? t("common.none");
+    }
     const configValues = Object.values(endpoint.config_masked ?? {}).filter(Boolean);
     return configValues[0] ?? t("common.none");
   };

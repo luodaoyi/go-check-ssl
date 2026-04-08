@@ -12,6 +12,7 @@ interface EndpointFormValues {
   type: EndpointType;
   enabled: boolean;
   recipient_email: string;
+  bot_token: string;
   chat_id: string;
   url: string;
   auth_header_name: string;
@@ -31,11 +32,12 @@ function endpointDefaults(endpoint?: ApiEndpoint): EndpointFormValues {
     name: endpoint?.name ?? "",
     type: endpoint?.type ?? "email",
     enabled: endpoint?.enabled ?? true,
-    recipient_email: "",
-    chat_id: "",
-    url: "",
+    recipient_email: config.recipient_email ?? "",
+    bot_token: config.bot_token ?? "",
+    chat_id: config.chat_id ?? "",
+    url: config.url ?? "",
     auth_header_name: config.auth_header_name ?? "",
-    auth_header_value: "",
+    auth_header_value: config.auth_header_value ?? "",
   };
 }
 
@@ -61,31 +63,7 @@ export function EndpointForm({
 
   const values = form.watch();
   const endpointType = values.type;
-
-  const primaryConfig = useMemo(() => {
-    switch (endpointType) {
-      case "email":
-        return {
-          label: t("notifications.recipientEmailLabel"),
-          placeholder: t("notifications.primaryEmailPlaceholder"),
-        };
-      case "telegram":
-        return {
-          label: t("notifications.telegramChatIdLabel"),
-          placeholder: t("notifications.telegramChatPlaceholder"),
-        };
-      case "webhook":
-        return {
-          label: t("notifications.webhookUrlLabel"),
-          placeholder: t("notifications.webhookUrlPlaceholder"),
-        };
-      default:
-        return {
-          label: t("common.type"),
-          placeholder: "",
-        };
-    }
-  }, [endpointType, t]);
+  const isEditingSameType = useMemo(() => Boolean(endpoint && endpoint.type === endpointType), [endpoint, endpointType]);
 
   const handleSubmit = form.handleSubmit(async (values) => {
     const config: Record<string, string> = {};
@@ -93,6 +71,7 @@ export function EndpointForm({
       config.recipient_email = values.recipient_email;
     }
     if (values.type === "telegram") {
+      config.bot_token = values.bot_token;
       config.chat_id = values.chat_id;
     }
     if (values.type === "webhook") {
@@ -115,9 +94,10 @@ export function EndpointForm({
 
   const validationError = (() => {
     if (!values.name.trim()) return t("validation.nameRequired");
-    if (values.type === "email" && !values.recipient_email.trim()) return t("validation.recipientEmailRequired");
-    if (values.type === "telegram" && !values.chat_id.trim()) return t("validation.telegramChatIdRequired");
-    if (values.type === "webhook" && !values.url.trim()) return t("validation.webhookUrlRequired");
+    if (values.type === "email" && !values.recipient_email.trim() && !isEditingSameType) return t("validation.recipientEmailRequired");
+    if (values.type === "telegram" && !values.bot_token.trim() && !isEditingSameType) return t("validation.telegramBotTokenRequired");
+    if (values.type === "telegram" && !values.chat_id.trim() && !isEditingSameType) return t("validation.telegramChatIdRequired");
+    if (values.type === "webhook" && !values.url.trim() && !isEditingSameType) return t("validation.webhookUrlRequired");
     return null;
   })();
 
@@ -140,18 +120,44 @@ export function EndpointForm({
         </select>
       </div>
 
-      <div className="space-y-2 md:col-span-2">
-        <Label htmlFor="endpoint-primary">{primaryConfig.label}</Label>
-        {endpointType === "email" ? (
-          <Input id="endpoint-primary" placeholder={primaryConfig.placeholder} {...form.register("recipient_email")} />
-        ) : null}
-        {endpointType === "telegram" ? (
-          <Input id="endpoint-primary" placeholder={primaryConfig.placeholder} {...form.register("chat_id")} />
-        ) : null}
-        {endpointType === "webhook" ? (
-          <Input id="endpoint-primary" placeholder={primaryConfig.placeholder} {...form.register("url")} />
-        ) : null}
-      </div>
+      {endpointType === "email" ? (
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="endpoint-recipient-email">{t("notifications.recipientEmailLabel")}</Label>
+          <Input
+            id="endpoint-recipient-email"
+            placeholder={t("notifications.primaryEmailPlaceholder")}
+            {...form.register("recipient_email")}
+          />
+        </div>
+      ) : null}
+
+      {endpointType === "telegram" ? (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="endpoint-bot-token">{t("notifications.telegramBotTokenLabel")}</Label>
+            <Input
+              id="endpoint-bot-token"
+              placeholder={t("notifications.telegramBotTokenPlaceholder")}
+              {...form.register("bot_token")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="endpoint-chat-id">{t("notifications.telegramChatIdLabel")}</Label>
+            <Input
+              id="endpoint-chat-id"
+              placeholder={t("notifications.telegramChatPlaceholder")}
+              {...form.register("chat_id")}
+            />
+          </div>
+        </>
+      ) : null}
+
+      {endpointType === "webhook" ? (
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="endpoint-url">{t("notifications.webhookUrlLabel")}</Label>
+          <Input id="endpoint-url" placeholder={t("notifications.webhookUrlPlaceholder")} {...form.register("url")} />
+        </div>
+      ) : null}
 
       {endpointType === "webhook" ? (
         <>
